@@ -21,7 +21,17 @@ def test_streamlit_real_data_and_ranges(tmp_path, real_rows, monkeypatch):
     settings.database = tmp_path / "real.duckdb"
     with connect(settings.database) as db:
         persist(db, real_rows, validate(real_rows, date(2026, 8, 31)))
+    from src.services.stock_service import load_stock
+    chart_data, quality = load_stock(settings, "3702", date(2026, 8, 31))
+    chart_data["foreign_net"] = 0
+    chart_data["investment_trust_net"] = 0
+    chart_data["dealer_net"] = 0
+    chart_data["margin_balance"] = 1000
+    chart_data["margin_change_1d"] = 0
     monkeypatch.setattr("src.ui.load_config", lambda: (settings, holdings, source))
+    monkeypatch.setattr("src.ui.load_stock", lambda *args: (chart_data, quality))
+    monkeypatch.setattr("src.ui.read_institutional", lambda *args: [None] * 250)
+    monkeypatch.setattr("src.ui.read_margin", lambda *args: [None] * 250)
     def no_network(*args):
         raise AssertionError("Rendering must never fetch")
     monkeypatch.setattr("src.ui.refresh", no_network)

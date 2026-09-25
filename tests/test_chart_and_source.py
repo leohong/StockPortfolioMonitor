@@ -20,8 +20,13 @@ def test_ten_manually_locked_source_dates(real_rows):
 
 def test_chart_exact_hover_and_shared_dates(real_rows):
     data = calculate(frame(real_rows))
+    data["foreign_net"] = range(len(data))
+    data["investment_trust_net"] = 0
+    data["dealer_net"] = 0
+    data["margin_balance"] = range(1000, 1000 + len(data))
+    data["margin_change_1d"] = data.margin_balance.diff()
     fig = stock_chart(data, "20D")
-    assert len(fig.data) == 7
+    assert len(fig.data) == 12
     assert len(fig.data[0].x) == 20
     assert all(list(t.x) == list(fig.data[0].x) for t in fig.data)
     assert "成交量 8,678,579 股" in fig.data[0].text[0]

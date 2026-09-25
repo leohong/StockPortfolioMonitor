@@ -9,6 +9,15 @@ FIELDS = {
     "retrieved_at": "擷取時間", "volume_unit": "成交量單位", "turnover_unit": "成交金額單位",
     "source_note": "來源註記", "ma5": "5 日均線", "ma20": "20 日均線", "ma60": "60 日均線",
     "rsi14": "相對強弱指標 RSI14", "volume_ma20": "20 日均量（股）", "volume_ratio_20": "20 日量比",
+    "foreign_net": "外資及陸資買賣超（股）", "investment_trust_net": "投信買賣超（股）",
+    "dealer_net": "自營商買賣超（股）", "institutional_total_net": "三大法人買賣超合計（股）",
+    "margin_buy": "融資買進（交易單位）", "margin_sell": "融資賣出（交易單位）",
+    "margin_cash_repayment": "融資現金償還（交易單位）", "margin_balance": "融資餘額（交易單位）",
+    "short_sell": "融券賣出（交易單位）", "short_cover": "融券買進（交易單位）",
+    "short_stock_repayment": "融券現券償還（交易單位）", "short_balance": "融券餘額（交易單位）",
+    "unit": "單位", "margin_change_1d": "融資日增減", "margin_change_5d": "融資 5 日增減",
+    "margin_change_10d": "融資 10 日增減", "margin_change_20d": "融資 20 日增減",
+    "margin_change_pct_20d": "融資 20 日增減率（%）",
 }
 MESSAGES = {
     "No OHLCV rows": "尚無開高低收與成交量資料",
