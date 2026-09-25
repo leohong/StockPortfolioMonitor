@@ -8,6 +8,7 @@ from src.services.stock_service import load_stock, refresh, refresh_phase2, refr
 from src.database.db import (connect, read_institutional, read_margin, read_pivots, read_levels, read_structure,
                              read_evidence, read_market_stage, read_snapshots, read_change_events)
 from src.services.portfolio_service import load_portfolio, filter_portfolio
+from src.services.review_service import load_timeline, historical_review, compare_holdings, load_data_quality
 
 STRUCTURE_STATES = {"UPTREND_STRUCTURE": "上升結構", "DOWNTREND_STRUCTURE": "下降結構",
                     "POSSIBLE_BASE": "可能築底", "POSSIBLE_TOP": "可能築頂",
@@ -78,10 +79,12 @@ def stock_detail():
         return
     if len(recent_snapshots) == 2:
         current, previous = recent_snapshots
+        def shown(value):
+            return "—" if value is None else f"{value:.2f}" if isinstance(value,float) else f"{value:,}" if isinstance(value,int) else str(value)
         st.subheader("昨日與今日")
         st.dataframe({"指標":["市場階段","收盤價","RSI14","成交量比","外資 5 日","投信 5 日","融資 20 日增幅","第一支撐","第一壓力"],
-            str(previous.market_date):[STAGE_LABELS[previous.market_stage],previous.close,previous.rsi14,previous.volume_ratio_20,previous.foreign_5d,previous.trust_5d,previous.margin_change_pct_20d,previous.support_1,previous.resistance_1],
-            str(current.market_date):[STAGE_LABELS[current.market_stage],current.close,current.rsi14,current.volume_ratio_20,current.foreign_5d,current.trust_5d,current.margin_change_pct_20d,current.support_1,current.resistance_1]}, hide_index=True)
+            str(previous.market_date):[STAGE_LABELS[previous.market_stage]]+[shown(x) for x in (previous.close,previous.rsi14,previous.volume_ratio_20,previous.foreign_5d,previous.trust_5d,previous.margin_change_pct_20d,previous.support_1,previous.resistance_1)],
+            str(current.market_date):[STAGE_LABELS[current.market_stage]]+[shown(x) for x in (current.close,current.rsi14,current.volume_ratio_20,current.foreign_5d,current.trust_5d,current.margin_change_pct_20d,current.support_1,current.resistance_1)]}, hide_index=True)
         st.subheader("最新變化")
         if latest_events:
             for item in latest_events:
@@ -180,7 +183,70 @@ def portfolio_radar():
     st.caption(f"顯示 {len(filtered)}／{len(data)} 檔；可點選任一列開啟個股詳情。表格欄位可直接排序。")
 
 
+def market_timeline():
+    settings, holdings, _ = load_config()
+    st.title("市場階段時間軸與歷史檢視")
+    holding = st.selectbox("股票",holdings,format_func=lambda x:f"{x.ticker} {x.name}",key="timeline_stock")
+    all_snapshots, _ = load_timeline(settings,holding.ticker)
+    if all_snapshots.empty:
+        st.warning("尚無歷史快照。")
+        return
+    dates = (all_snapshots.market_date.min().date(),all_snapshots.market_date.max().date())
+    selected_range = st.date_input("日期範圍",dates,min_value=dates[0],max_value=dates[1])
+    snapshots, events = load_timeline(settings,holding.ticker,*selected_range)
+    changes = snapshots[snapshots.stage_changed][["market_date","market_stage","structure_state","rsi14"]].copy()
+    changes["market_stage"] = changes.market_stage.map(lambda x:STAGE_LABELS.get(x,x))
+    changes["structure_state"] = changes.structure_state.map(lambda x:STRUCTURE_STATES.get(x,x))
+    st.subheader("市場階段變化")
+    st.dataframe(changes.rename(columns={"market_date":"日期","market_stage":"市場階段","structure_state":"價格結構","rsi14":"RSI14"}),hide_index=True,width="stretch")
+    st.subheader("期間事件")
+    st.dataframe(events.rename(columns={"market_date":"日期","change_type":"事件","severity":"嚴重度","explanation":"說明"}),hide_index=True,width="stretch")
+    day = st.selectbox("歷史快照",list(reversed(snapshots.market_date.dt.date.tolist())))
+    snapshot, day_events, evidence = historical_review(settings,holding.ticker,day)
+    if snapshot is not None:
+        st.markdown(f"### {day}｜{STAGE_LABELS.get(snapshot.market_stage,snapshot.market_stage)}")
+        a,b,c,d=st.columns(4); a.metric("收盤價",f"{snapshot.close:.2f} 元"); b.metric("RSI14",f"{snapshot.rsi14:.2f}" if snapshot.rsi14==snapshot.rsi14 else "—"); c.metric("第一支撐",snapshot.support_1 or "—"); d.metric("第一壓力",snapshot.resistance_1 or "—")
+        with st.expander("當日已知的七因素證據",expanded=True):
+            for item in evidence:
+                st.write(f"**{FACTOR_LABELS[item.factor]}｜{EVIDENCE_STATUS[item.status]}**　{item.headline}：{item.current_value}　來源日期：{'、'.join(map(str,item.source_dates)) or '尚無'}")
+        st.caption("此檢視只讀取該日期以前已確認並保存的證據，不使用未來資料。")
+
+
+def holdings_compare():
+    settings, holdings, _ = load_config()
+    st.title("持股並排比較")
+    st.caption("並排檢視證據，不產生總分、排名或勝者。")
+    selected = st.multiselect("選擇 2–5 檔持股",holdings,format_func=lambda x:f"{x.ticker} {x.name}",max_selections=5)
+    if len(selected)<2:
+        st.info("請選擇至少 2 檔持股。")
+        return
+    result=compare_holdings(settings,[x.ticker for x in selected])
+    names={x.ticker:x.name for x in selected}; result["股票"]=result.ticker.map(lambda x:f"{x} {names[x]}"); result["市場階段"]=result.market_stage.map(lambda x:STAGE_LABELS.get(x,x))
+    columns={"股票":"股票","市場階段":"市場階段","rsi14":"RSI14","return_20d_pct":"20 日報酬（%）","distance_ma20_pct":"距 MA20（%）","volume_ratio_20":"量比","foreign_5d":"外資 5 日","foreign_20d":"外資 20 日","trust_5d":"投信 5 日","trust_20d":"投信 20 日","margin_change_pct_20d":"融資 20 日（%）","distance_support_pct":"距支撐（%）","distance_resistance_pct":"距壓力（%）"}
+    st.dataframe(result[list(columns)].rename(columns=columns),hide_index=True,width="stretch")
+
+
+def data_quality_page():
+    settings, holdings, _ = load_config()
+    st.title("資料品質稽核")
+    data,audits=load_data_quality(settings,[x.ticker for x in holdings])
+    if data.empty:
+        st.warning("尚無可稽核資料。")
+        return
+    display=data.copy(); display["status"]=display.status.map(lambda x:STATUS.get(x,x))
+    st.dataframe(display.rename(columns={"ticker":"股票代號","dataset":"資料集","latest_date":"最新日期","source":"來源","status":"狀態","missing":"缺值","conflicts":"衝突","retrieved":"擷取時間"}),hide_index=True,width="stretch")
+    st.subheader("品質檢查紀錄")
+    for item in audits[:20]:
+        with st.expander(f"{item['ticker']}｜{item['checked_at']}｜{STATUS.get(item['status'],item['status'])}"):
+            st.json(json.loads(item["details_json"]))
+
+
 def application():
     if "view" not in st.session_state:
         st.session_state.view = "portfolio"
-    portfolio_radar() if st.session_state.view == "portfolio" else stock_detail()
+    labels={"portfolio":"投資組合雷達","detail":"個股詳情","timeline":"市場階段時間軸","compare":"持股比較","quality":"資料品質"}
+    st.sidebar.markdown("### 頁面")
+    for view,label in labels.items():
+        st.sidebar.button(label,key=f"nav_{view}",use_container_width=True,on_click=lambda target=view:setattr(st.session_state,"view",target))
+    pages={"portfolio":portfolio_radar,"detail":stock_detail,"timeline":market_timeline,"compare":holdings_compare,"quality":data_quality_page}
+    pages.get(st.session_state.view,portfolio_radar)()
