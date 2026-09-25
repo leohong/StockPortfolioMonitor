@@ -1,0 +1,6 @@
+twse:
+  endpoint: https://www.twse.com.tw/exchangeReport/STOCK_DAY
+  source_type: official_exchange
+  is_official: true
+  volume_unit: shares
+  turnover_unit: TWD

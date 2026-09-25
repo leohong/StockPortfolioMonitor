@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "taiwan-stock-dashboard"
+version = "0.1.0"
+description = "Local official OHLCV dashboard — Phase 0 and 1"
+requires-python = ">=3.12"
+dependencies = ["streamlit>=1.54,<2", "plotly>=6.3,<8", "duckdb>=1.4,<2", "pandas>=2.2,<4", "numpy>=2,<3", "httpx>=0.28,<1", "tenacity>=9,<10", "pydantic>=2.10,<3", "PyYAML>=6,<7", "pytz>=2025.2", "tzdata>=2025.2"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8,<10"]
+
+[tool.setuptools.packages.find]
+include = ["src*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

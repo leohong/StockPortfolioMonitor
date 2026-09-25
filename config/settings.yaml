@@ -1,0 +1,4 @@
+database: data/stocks.duckdb
+cache_dir: data/cache
+history_months: 15
+stale_days: 7

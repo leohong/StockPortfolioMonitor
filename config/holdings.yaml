@@ -1,0 +1,6 @@
+holdings:
+  - ticker: "3702"
+    name: "大聯大"
+    cost: null
+    quantity_lots: null
+    horizon: swing
