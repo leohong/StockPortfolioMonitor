@@ -125,3 +125,45 @@ class MarketStage(BaseModel):
     reasons: list[str]
     evidence_factors: list[str]
     created_at: datetime
+
+
+class AnalysisSnapshot(BaseModel):
+    ticker: str
+    market_date: date
+    close: float
+    market_stage: str
+    structure_state: str
+    latest_pivot_type: str | None = None
+    rsi14: float | None = None
+    ma5: float | None = None
+    ma20: float | None = None
+    ma60: float | None = None
+    volume_ratio_20: float | None = None
+    foreign_5d: int | None = None
+    foreign_20d: int | None = None
+    trust_5d: int | None = None
+    trust_20d: int | None = None
+    dealer_5d: int | None = None
+    margin_balance: int | None = None
+    margin_change_5d: int | None = None
+    margin_change_20d: int | None = None
+    margin_change_pct_20d: float | None = None
+    support_1: float | None = None
+    support_2: float | None = None
+    resistance_1: float | None = None
+    resistance_2: float | None = None
+    bullish_evidence_count: int
+    bearish_evidence_count: int
+    warning_count: int
+    data_quality_status: str
+    created_at: datetime
+
+
+class ChangeEvent(BaseModel):
+    ticker: str
+    market_date: date
+    change_type: str
+    severity: Literal["INFO", "WATCH", "IMPORTANT", "CRITICAL"]
+    previous_value: str
+    current_value: str
+    explanation: str

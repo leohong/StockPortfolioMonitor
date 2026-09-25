@@ -4,8 +4,9 @@ from src.i18n import STATUS, RANGE_LABELS, FIELDS, message, display_value
 
 from src.config import load_config
 from src.charts.stock_chart import stock_chart, RANGES
-from src.services.stock_service import load_stock, refresh, refresh_phase2, refresh_phase3, refresh_phase4, refresh_phase5
-from src.database.db import connect, read_institutional, read_margin, read_pivots, read_levels, read_structure, read_evidence, read_market_stage
+from src.services.stock_service import load_stock, refresh, refresh_phase2, refresh_phase3, refresh_phase4, refresh_phase5, refresh_phase6
+from src.database.db import (connect, read_institutional, read_margin, read_pivots, read_levels, read_structure,
+                             read_evidence, read_market_stage, read_snapshots, read_change_events)
 
 STRUCTURE_STATES = {"UPTREND_STRUCTURE": "上升結構", "DOWNTREND_STRUCTURE": "下降結構",
                     "POSSIBLE_BASE": "可能築底", "POSSIBLE_TOP": "可能築頂",
@@ -14,6 +15,7 @@ FACTOR_LABELS = {"price_structure":"價格結構", "rsi":"相對強弱指標", "
                  "volume":"成交量", "institutional":"三大法人", "margin":"融資",
                  "support_resistance":"支撐／壓力"}
 EVIDENCE_STATUS = {"BULLISH":"偏多", "NEUTRAL":"中性", "BEARISH":"偏空", "WARNING":"警示", "INSUFFICIENT_DATA":"資料不足"}
+SEVERITY_LABELS = {"INFO":"資訊", "WATCH":"注意", "IMPORTANT":"重要", "CRITICAL":"關鍵"}
 STAGE_LABELS = {"A_DOWNTREND":"A｜下降趨勢", "B_EARLY_BASE":"B｜初步築底", "C_BASE_CONFIRMATION":"C｜底部確認",
                 "D_UPTREND":"D｜上升趨勢", "E_OVERHEATED":"E｜過熱", "F_HIGH_LEVEL_CORRECTION":"F｜高檔修正",
                 "G_STRUCTURE_WEAKENING":"G｜結構轉弱", "TRANSITION":"過渡期", "UNCLASSIFIED":"無法分類"}
@@ -24,7 +26,7 @@ def stock_detail():
     with connect(settings.database):
         pass
     st.title("台股技術分析儀表板")
-    st.caption("第五階段 · 市場階段判定與七因素證據矩陣")
+    st.caption("第六階段 · 每日快照、昨日與今日、變化偵測")
     holding = st.selectbox("股票", holdings, format_func=lambda h: f"{h.ticker} {h.name}")
     if st.button("更新市場資料", type="primary"):
         try:
@@ -34,6 +36,7 @@ def stock_detail():
                 refresh_phase3(settings, holding.ticker)
                 refresh_phase4(settings, holding.ticker)
                 refresh_phase5(settings, holding.ticker)
+                refresh_phase6(settings, holding.ticker)
             st.success("資料更新完成")
         except Exception as exc:
             st.error("更新失敗，已保留原有資料。請確認網路連線與官方來源是否可用。")
@@ -52,6 +55,8 @@ def stock_detail():
         pivots, levels, structure = read_pivots(db, holding.ticker), read_levels(db, holding.ticker), read_structure(db, holding.ticker)
         evidence = read_evidence(db, holding.ticker)
         market_stage = read_market_stage(db, holding.ticker)
+        recent_snapshots = read_snapshots(db, holding.ticker, 2)
+        latest_events = read_change_events(db, holding.ticker, recent_snapshots[0].market_date) if recent_snapshots else []
     if institutional_count < 250 or margin_count < 250:
         st.warning(f"第二階段資料尚未完成：法人 {institutional_count}/250 日、融資融券 {margin_count}/250 日。請按「更新市場資料」。")
         return
@@ -60,6 +65,23 @@ def stock_detail():
     b.metric("最新交易日", str(latest.market_date))
     c.metric("資料品質", STATUS[quality.status])
     st.caption(f"行情 {len(data)} 日 · 法人 {institutional_count} 日 · 融資融券 {margin_count} 日 · 成交量／法人：股 · 融資融券：交易單位")
+    meaningful_events = [item for item in latest_events if item.severity in {"WATCH","IMPORTANT","CRITICAL"}]
+    changed_only = st.toggle("只顯示今日有重要變化的持股")
+    if changed_only and not meaningful_events:
+        st.info("此持股在最新交易日沒有需要注意的重要變化。")
+        return
+    if len(recent_snapshots) == 2:
+        current, previous = recent_snapshots
+        st.subheader("昨日與今日")
+        st.dataframe({"指標":["市場階段","收盤價","RSI14","成交量比","外資 5 日","投信 5 日","融資 20 日增幅","第一支撐","第一壓力"],
+            str(previous.market_date):[STAGE_LABELS[previous.market_stage],previous.close,previous.rsi14,previous.volume_ratio_20,previous.foreign_5d,previous.trust_5d,previous.margin_change_pct_20d,previous.support_1,previous.resistance_1],
+            str(current.market_date):[STAGE_LABELS[current.market_stage],current.close,current.rsi14,current.volume_ratio_20,current.foreign_5d,current.trust_5d,current.margin_change_pct_20d,current.support_1,current.resistance_1]}, hide_index=True)
+        st.subheader("最新變化")
+        if latest_events:
+            for item in latest_events:
+                st.write(f"**{SEVERITY_LABELS[item.severity]}｜{item.change_type}**　{item.explanation}（{item.previous_value} → {item.current_value}）")
+        else:
+            st.caption("最新交易日沒有偵測到變化事件。")
     if market_stage:
         st.subheader("市場階段")
         st.markdown(f"### {STAGE_LABELS[market_stage.stage]}")

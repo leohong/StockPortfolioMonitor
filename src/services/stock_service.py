@@ -15,12 +15,14 @@ from src.data.phase2_validator import validate_phase2
 from src.data.providers.twse_phase2 import fetch_daily
 from src.database.db import (connect, read_rows, persist, record_quality, frame,
                              read_institutional, read_margin, persist_phase2, persist_phase3)
-from src.database.db import read_pivots, read_levels, read_structure, persist_evidence, read_evidence, persist_market_stages
+from src.database.db import (read_pivots, read_levels, read_structure, persist_evidence, read_evidence,
+                             persist_market_stages, read_market_stage, persist_snapshots_and_events)
 from src.indicators.core import calculate
 from src.analysis.phase2_metrics import calculate_phase2
 from src.analysis.price_structure import detect_pivots, structure_snapshot, derive_levels
 from src.analysis.evidence import build_evidence
 from src.analysis.market_stage import classify_stage
+from src.analysis.snapshot import build_snapshot, detect_changes
 from src.logging_config import event, configure_logging
 
 
@@ -189,6 +191,28 @@ def refresh_phase5(settings, ticker: str):
     return stages[-1]
 
 
+def refresh_phase6(settings, ticker: str):
+    data, quality = load_stock(settings, ticker)
+    if quality.status == "FAIL" or data.empty:
+        raise ValueError("Phase 6 requires validated Phase 1–5 data")
+    snapshots, events = [], []
+    with connect(settings.database) as db:
+        pivots = read_pivots(db, ticker)
+        for row in data.itertuples():
+            day = pd.Timestamp(row.market_date).date()
+            stage, structure = read_market_stage(db, ticker, day), read_structure(db, ticker, day)
+            evidence, levels = read_evidence(db, ticker, day), read_levels(db, ticker, day)
+            if stage is None or structure is None or len(evidence) != 7:
+                raise ValueError(f"Phase 3–5 analysis missing for {day}")
+            snapshot = build_snapshot(row, stage, structure, pivots, levels, evidence, quality.status)
+            if snapshots:
+                events.extend(detect_changes(snapshots[-1], snapshot))
+            snapshots.append(snapshot)
+        persist_snapshots_and_events(db, ticker, snapshots, events)
+    event("ANALYSIS_COMPLETE", ticker=ticker, dataset="phase6", snapshots=len(snapshots), events=len(events))
+    return snapshots[-1]
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--ticker", default="3702")
@@ -197,8 +221,9 @@ if __name__ == "__main__":
     parser.add_argument("--phase3", action="store_true", help="Calculate confirmed price structure")
     parser.add_argument("--phase4", action="store_true", help="Build seven-factor evidence matrix")
     parser.add_argument("--phase5", action="store_true", help="Classify deterministic market stages")
+    parser.add_argument("--phase6", action="store_true", help="Persist daily snapshots and change events")
     args = parser.parse_args()
     configure_logging()
     settings, _, _ = load_config()
-    result = refresh_phase5(settings, args.ticker) if args.phase5 else (refresh_phase4(settings, args.ticker) if args.phase4 else (refresh_phase3(settings, args.ticker) if args.phase3 else (refresh_phase2(settings, args.ticker, full=args.full) if args.phase2 else refresh(settings, args.ticker, full=args.full))))
+    result = refresh_phase6(settings, args.ticker) if args.phase6 else (refresh_phase5(settings, args.ticker) if args.phase5 else (refresh_phase4(settings, args.ticker) if args.phase4 else (refresh_phase3(settings, args.ticker) if args.phase3 else (refresh_phase2(settings, args.ticker, full=args.full) if args.phase2 else refresh(settings, args.ticker, full=args.full)))))
     print("\n".join(item.model_dump_json(indent=2) for item in result) if isinstance(result, list) else result.model_dump_json(indent=2))

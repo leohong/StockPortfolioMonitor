@@ -5,7 +5,7 @@ import json
 import duckdb
 import pandas as pd
 
-from src.models import OHLCV, InstitutionalDaily, MarginDaily, PricePivot, PriceLevel, StructureSnapshot, Evidence, MarketStage
+from src.models import OHLCV, InstitutionalDaily, MarginDaily, PricePivot, PriceLevel, StructureSnapshot, Evidence, MarketStage, AnalysisSnapshot, ChangeEvent
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS ohlcv_daily (
@@ -47,12 +47,26 @@ CREATE TABLE IF NOT EXISTS market_stage_daily (
  ticker VARCHAR, market_date DATE, stage VARCHAR, reasons_json VARCHAR,
  evidence_factors_json VARCHAR, created_at TIMESTAMPTZ,
  PRIMARY KEY(ticker,market_date));
+CREATE TABLE IF NOT EXISTS analysis_snapshots (
+ ticker VARCHAR, market_date DATE, close DOUBLE, market_stage VARCHAR, structure_state VARCHAR,
+ latest_pivot_type VARCHAR, rsi14 DOUBLE, ma5 DOUBLE, ma20 DOUBLE, ma60 DOUBLE,
+ volume_ratio_20 DOUBLE, foreign_5d BIGINT, foreign_20d BIGINT, trust_5d BIGINT, trust_20d BIGINT,
+ dealer_5d BIGINT, margin_balance BIGINT, margin_change_5d BIGINT, margin_change_20d BIGINT,
+ margin_change_pct_20d DOUBLE, support_1 DOUBLE, support_2 DOUBLE, resistance_1 DOUBLE,
+ resistance_2 DOUBLE, bullish_evidence_count INTEGER, bearish_evidence_count INTEGER,
+ warning_count INTEGER, data_quality_status VARCHAR, created_at TIMESTAMPTZ,
+ PRIMARY KEY(ticker,market_date));
+CREATE TABLE IF NOT EXISTS change_events (
+ ticker VARCHAR, market_date DATE, change_type VARCHAR, severity VARCHAR,
+ previous_value VARCHAR, current_value VARCHAR, explanation VARCHAR,
+ PRIMARY KEY(ticker,market_date,change_type));
 CREATE TABLE IF NOT EXISTS schema_version(version INTEGER PRIMARY KEY);
 INSERT INTO schema_version VALUES (1) ON CONFLICT DO NOTHING;
 INSERT INTO schema_version VALUES (2) ON CONFLICT DO NOTHING;
 INSERT INTO schema_version VALUES (3) ON CONFLICT DO NOTHING;
 INSERT INTO schema_version VALUES (4) ON CONFLICT DO NOTHING;
 INSERT INTO schema_version VALUES (5) ON CONFLICT DO NOTHING;
+INSERT INTO schema_version VALUES (6) ON CONFLICT DO NOTHING;
 """
 
 
@@ -145,6 +159,21 @@ def read_market_stage(connection, ticker, market_date=None):
     item["reasons"] = json.loads(item.pop("reasons_json"))
     item["evidence_factors"] = json.loads(item.pop("evidence_factors_json"))
     return MarketStage(**item)
+
+
+def read_snapshots(connection, ticker, limit=None):
+    query = "SELECT * FROM analysis_snapshots WHERE ticker=? ORDER BY market_date"
+    if limit:
+        query = f"SELECT * FROM ({query}) ORDER BY market_date DESC LIMIT {int(limit)}"
+    return _read_models(connection, query, [ticker], AnalysisSnapshot)
+
+
+def read_change_events(connection, ticker=None, market_date=None):
+    clauses, params = [], []
+    if ticker is not None: clauses.append("ticker=?"); params.append(ticker)
+    if market_date is not None: clauses.append("market_date=?"); params.append(market_date)
+    where = " WHERE " + " AND ".join(clauses) if clauses else ""
+    return _read_models(connection, f"SELECT * FROM change_events{where} ORDER BY market_date,change_type", params, ChangeEvent)
 
 
 def persist(connection, rows, quality):
@@ -242,6 +271,28 @@ def persist_market_stages(connection, ticker, stages):
         raise
     finally:
         connection.unregister("incoming_stages")
+
+
+def persist_snapshots_and_events(connection, ticker, snapshots, events):
+    snapshot_frame, event_frame = frame(snapshots), frame(events)
+    connection.register("incoming_analysis_snapshots", snapshot_frame)
+    if not event_frame.empty:
+        connection.register("incoming_change_events", event_frame)
+    connection.execute("BEGIN TRANSACTION")
+    try:
+        connection.execute("DELETE FROM analysis_snapshots WHERE ticker=?", [ticker])
+        connection.execute("DELETE FROM change_events WHERE ticker=?", [ticker])
+        connection.execute("INSERT INTO analysis_snapshots SELECT * FROM incoming_analysis_snapshots")
+        if not event_frame.empty:
+            connection.execute("INSERT INTO change_events SELECT * FROM incoming_change_events")
+        connection.execute("COMMIT")
+    except Exception:
+        connection.execute("ROLLBACK")
+        raise
+    finally:
+        connection.unregister("incoming_analysis_snapshots")
+        if not event_frame.empty:
+            connection.unregister("incoming_change_events")
 
 
 def record_quality(connection, ticker, quality):
