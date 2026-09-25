@@ -4,12 +4,16 @@ from src.i18n import STATUS, RANGE_LABELS, FIELDS, message, display_value
 
 from src.config import load_config
 from src.charts.stock_chart import stock_chart, RANGES
-from src.services.stock_service import load_stock, refresh, refresh_phase2, refresh_phase3
-from src.database.db import connect, read_institutional, read_margin, read_pivots, read_levels, read_structure
+from src.services.stock_service import load_stock, refresh, refresh_phase2, refresh_phase3, refresh_phase4
+from src.database.db import connect, read_institutional, read_margin, read_pivots, read_levels, read_structure, read_evidence
 
 STRUCTURE_STATES = {"UPTREND_STRUCTURE": "上升結構", "DOWNTREND_STRUCTURE": "下降結構",
                     "POSSIBLE_BASE": "可能築底", "POSSIBLE_TOP": "可能築頂",
                     "RANGE": "區間整理", "UNCONFIRMED": "尚未確認"}
+FACTOR_LABELS = {"price_structure":"價格結構", "rsi":"相對強弱指標", "moving_averages":"移動平均線",
+                 "volume":"成交量", "institutional":"三大法人", "margin":"融資",
+                 "support_resistance":"支撐／壓力"}
+EVIDENCE_STATUS = {"BULLISH":"偏多", "NEUTRAL":"中性", "BEARISH":"偏空", "WARNING":"警示", "INSUFFICIENT_DATA":"資料不足"}
 
 
 def stock_detail():
@@ -17,7 +21,7 @@ def stock_detail():
     with connect(settings.database):
         pass
     st.title("台股技術分析儀表板")
-    st.caption("第三階段 · 證交所官方資料、價格結構與支撐壓力 · 五層互動圖")
+    st.caption("第四階段 · 七因素證據矩陣 · 證交所官方資料與五層互動圖")
     holding = st.selectbox("股票", holdings, format_func=lambda h: f"{h.ticker} {h.name}")
     if st.button("更新市場資料", type="primary"):
         try:
@@ -25,6 +29,7 @@ def stock_detail():
                 refresh(settings, holding.ticker)
                 refresh_phase2(settings, holding.ticker)
                 refresh_phase3(settings, holding.ticker)
+                refresh_phase4(settings, holding.ticker)
             st.success("資料更新完成")
         except Exception as exc:
             st.error("更新失敗，已保留原有資料。請確認網路連線與官方來源是否可用。")
@@ -41,6 +46,7 @@ def stock_detail():
         institutional_count = len(read_institutional(db, holding.ticker))
         margin_count = len(read_margin(db, holding.ticker))
         pivots, levels, structure = read_pivots(db, holding.ticker), read_levels(db, holding.ticker), read_structure(db, holding.ticker)
+        evidence = read_evidence(db, holding.ticker)
     if institutional_count < 250 or margin_count < 250:
         st.warning(f"第二階段資料尚未完成：法人 {institutional_count}/250 日、融資融券 {margin_count}/250 日。請按「更新市場資料」。")
         return
@@ -53,6 +59,22 @@ def stock_detail():
         st.subheader("價格結構")
         st.write(f"狀態：**{STRUCTURE_STATES[structure.state]}**　高點證據：{structure.high_label or '—'} {structure.high_pivot_date or '—'} / {structure.high_price or '—'} 元　低點證據：{structure.low_label or '—'} {structure.low_pivot_date or '—'} / {structure.low_price or '—'} 元")
         st.caption(f"Pivot 敏感度：左 {settings.pivot_left_bars} 日／右 {settings.pivot_right_bars} 日；圖上標註轉折日，訊號僅自確認日起可用。")
+    if evidence:
+        st.subheader("七因素證據矩陣")
+        st.caption("各因素獨立呈現，不計算單一買賣分數。")
+        order = {name:i for i,name in enumerate(FACTOR_LABELS)}
+        evidence = sorted(evidence, key=lambda x: order[x.factor])
+        for start in (0, 4):
+            columns = st.columns(min(4, len(evidence) - start))
+            for column, item in zip(columns, evidence[start:start+4]):
+                with column:
+                    st.markdown(f"**{FACTOR_LABELS[item.factor]}**　`{EVIDENCE_STATUS[item.status]}`")
+                    st.metric(item.headline, item.current_value)
+                    st.caption(item.reasoning)
+                    with st.expander("檢視證據"):
+                        for observation in item.observations:
+                            st.json(observation)
+                        st.write("來源日期：", "、".join(map(str, item.source_dates)) or "尚無")
     st.link_button("證交所官方來源", latest.source)
     with st.expander("資料品質與限制", expanded=True):
         for warning in quality.warnings:

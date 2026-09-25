@@ -1,5 +1,5 @@
 from datetime import date, datetime
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -103,3 +103,16 @@ class PriceLevel(BaseModel):
     derivation: str
     evidence_date: date
     source_confirmation_date: date | None = None
+
+
+class Evidence(BaseModel):
+    ticker: str
+    market_date: date
+    factor: Literal["price_structure", "rsi", "moving_averages", "volume", "institutional", "margin", "support_resistance"]
+    status: Literal["BULLISH", "NEUTRAL", "BEARISH", "WARNING", "INSUFFICIENT_DATA"]
+    headline: str
+    current_value: str
+    observations: list[dict[str, Any]] = Field(default_factory=list)
+    reasoning: str
+    source_dates: list[date] = Field(default_factory=list)
+    updated_at: datetime
