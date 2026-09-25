@@ -1,4 +1,5 @@
 import json
+import hashlib
 from datetime import date, datetime, timezone
 from pathlib import Path
 
@@ -8,6 +9,7 @@ import pytest
 from src.analysis.phase2_metrics import calculate_phase2
 from src.data.phase2_normalizer import normalize_institutional, normalize_margin
 from src.data.phase2_validator import validate_phase2
+from src.data.providers.twse_phase2 import fetch_daily
 
 FIXTURES = Path(__file__).parent / "fixtures"
 DAY = date(2026, 9, 24)
@@ -48,3 +50,27 @@ def test_rolling_sums_and_margin_changes():
     assert actual_margin.margin_change_5d.iloc[5] == 50
     assert actual_margin.margin_change_20d.iloc[20] == 200
     assert actual_margin.margin_change_pct_20d.iloc[20] == pytest.approx(200)
+
+
+def test_verified_cache_hit_never_opens_network(tmp_path, monkeypatch):
+    payload = (FIXTURES / "3702_20260924_institutional.json").read_bytes()
+    digest = hashlib.sha256(payload).hexdigest()
+    target = tmp_path / "institutional"
+    target.mkdir()
+    archive = target / f"20260924_{digest[:12]}.json"
+    archive.write_bytes(payload)
+    archive.with_name(f"{archive.stem}.metadata.json").write_text(json.dumps({
+        "source": "https://www.twse.com.tw/rwd/zh/fund/T86?date=20260924",
+        "source_type": "official_exchange", "is_official": True,
+        "retrieved_at": "2026-09-25T00:00:00+00:00", "sha256": digest,
+        "archive": str(archive),
+    }), "utf-8")
+
+    class NetworkMustNotOpen:
+        def __init__(self, *args, **kwargs):
+            raise AssertionError("cache hit attempted network access")
+
+    monkeypatch.setattr("src.data.providers.twse_phase2.httpx.Client", NetworkMustNotOpen)
+    result = fetch_daily("institutional", DAY, tmp_path)
+    assert result["sha256"] == digest
+    assert result["payload"]["date"] == "20260924"

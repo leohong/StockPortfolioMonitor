@@ -100,18 +100,24 @@ def refresh_phase2(settings, ticker: str, full: bool = False, limit: int = 250):
     target_dates = [row.market_date for row in ohlcv[-limit:]]
     inst_by_date = {} if full else {row.market_date: row for row in existing_inst if row.market_date in target_dates}
     margin_by_date = {} if full else {row.market_date: row for row in existing_margin if row.market_date in target_dates}
+    fetched_count = 0
     try:
         with httpx.Client(timeout=30, follow_redirects=True) as client:
-            for index, market_date in enumerate(target_dates, 1):
+            for market_date in target_dates:
+                fetched = False
                 if market_date not in inst_by_date:
                     inst_by_date[market_date] = normalize_institutional(
                         ticker, market_date, fetch_daily("institutional", market_date, settings.cache_dir, client, force=full))
+                    fetched = True
                 if market_date not in margin_by_date:
                     margin_by_date[market_date] = normalize_margin(
                         ticker, market_date, fetch_daily("margin", market_date, settings.cache_dir, client, force=full))
-                time.sleep(0.20)
-                if index % 25 == 0:
-                    event("DATA_FETCH_PROGRESS", ticker=ticker, completed=index, total=len(target_dates))
+                    fetched = True
+                if fetched:
+                    fetched_count += 1
+                    time.sleep(0.20)
+                    if fetched_count % 25 == 0:
+                        event("DATA_FETCH_PROGRESS", ticker=ticker, fetched=fetched_count, total=len(target_dates))
         institutional = [inst_by_date[day] for day in target_dates]
         margin = [margin_by_date[day] for day in target_dates]
         quality = validate_phase2(institutional, margin, set(target_dates))
