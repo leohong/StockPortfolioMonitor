@@ -9,6 +9,7 @@ from src.database.db import (connect, read_institutional, read_margin, read_pivo
                              read_evidence, read_market_stage, read_snapshots, read_change_events)
 from src.services.portfolio_service import load_portfolio, filter_portfolio
 from src.services.review_service import load_timeline, historical_review, compare_holdings, load_data_quality
+from src.services.export_service import snapshot_csv, snapshot_png
 
 STRUCTURE_STATES = {"UPTREND_STRUCTURE": "上升結構", "DOWNTREND_STRUCTURE": "下降結構",
                     "POSSIBLE_BASE": "可能築底", "POSSIBLE_TOP": "可能築頂",
@@ -129,8 +130,20 @@ def stock_detail():
                 for item in details.get("errors", []) + details.get("warnings", []):
                     st.write(message(item))
     selected = st.radio("顯示區間", list(RANGES), format_func=RANGE_LABELS.get, index=2, horizontal=True)
-    st.plotly_chart(stock_chart(data, selected, pivots, levels), width="stretch", config={"displaylogo": False, "scrollZoom": True})
+    figure = stock_chart(data, selected, pivots, levels)
+    st.plotly_chart(figure, width="stretch", config={"displaylogo": False, "scrollZoom": True})
     st.caption("五層依序為價格、成交量、三大法人、融資、RSI；共同日期軸與統一游標。指標先以完整歷史計算，再套用顯示區間。")
+    if recent_snapshots:
+        snapshot = recent_snapshots[0]
+        st.subheader("匯出目前快照")
+        csv_bytes = snapshot_csv(snapshot,evidence,latest_events,latest.source)
+        st.download_button("下載 CSV",csv_bytes,file_name=f"{holding.ticker}_{snapshot.market_date}_snapshot.csv",mime="text/csv")
+        if st.button("產生 3200×2200 PNG",help="由目前畫面的同一份五層圖與分析快照產生，可能需要數秒。"):
+            with st.spinner("正在產生高解析度 PNG…"):
+                st.session_state.export_png = snapshot_png(figure,snapshot,evidence,latest_events,latest.source)
+                st.session_state.export_png_key = f"{holding.ticker}_{snapshot.market_date}_{selected}"
+        if st.session_state.get("export_png_key") == f"{holding.ticker}_{snapshot.market_date}_{selected}":
+            st.download_button("下載高解析度 PNG",st.session_state.export_png,file_name=f"{holding.ticker}_{snapshot.market_date}_{selected}.png",mime="image/png")
     with st.expander("逐日精確資料與來源"):
         day = st.selectbox("日期", list(reversed(data.market_date.tolist())))
         record = data[data.market_date == day].iloc[0]
