@@ -116,3 +116,12 @@ class Evidence(BaseModel):
     reasoning: str
     source_dates: list[date] = Field(default_factory=list)
     updated_at: datetime
+
+
+class MarketStage(BaseModel):
+    ticker: str
+    market_date: date
+    stage: Literal["A_DOWNTREND", "B_EARLY_BASE", "C_BASE_CONFIRMATION", "D_UPTREND", "E_OVERHEATED", "F_HIGH_LEVEL_CORRECTION", "G_STRUCTURE_WEAKENING", "TRANSITION", "UNCLASSIFIED"]
+    reasons: list[str]
+    evidence_factors: list[str]
+    created_at: datetime

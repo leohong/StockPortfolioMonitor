@@ -5,7 +5,7 @@ import json
 import duckdb
 import pandas as pd
 
-from src.models import OHLCV, InstitutionalDaily, MarginDaily, PricePivot, PriceLevel, StructureSnapshot, Evidence
+from src.models import OHLCV, InstitutionalDaily, MarginDaily, PricePivot, PriceLevel, StructureSnapshot, Evidence, MarketStage
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS ohlcv_daily (
@@ -43,11 +43,16 @@ CREATE TABLE IF NOT EXISTS evidence_daily (
  ticker VARCHAR, market_date DATE, factor VARCHAR, status VARCHAR, headline VARCHAR,
  current_value VARCHAR, observations_json VARCHAR, reasoning VARCHAR, source_dates_json VARCHAR,
  updated_at TIMESTAMPTZ, PRIMARY KEY(ticker,market_date,factor));
+CREATE TABLE IF NOT EXISTS market_stage_daily (
+ ticker VARCHAR, market_date DATE, stage VARCHAR, reasons_json VARCHAR,
+ evidence_factors_json VARCHAR, created_at TIMESTAMPTZ,
+ PRIMARY KEY(ticker,market_date));
 CREATE TABLE IF NOT EXISTS schema_version(version INTEGER PRIMARY KEY);
 INSERT INTO schema_version VALUES (1) ON CONFLICT DO NOTHING;
 INSERT INTO schema_version VALUES (2) ON CONFLICT DO NOTHING;
 INSERT INTO schema_version VALUES (3) ON CONFLICT DO NOTHING;
 INSERT INTO schema_version VALUES (4) ON CONFLICT DO NOTHING;
+INSERT INTO schema_version VALUES (5) ON CONFLICT DO NOTHING;
 """
 
 
@@ -127,6 +132,21 @@ def read_evidence(connection, ticker, market_date=None):
     return result
 
 
+def read_market_stage(connection, ticker, market_date=None):
+    if market_date is None:
+        market_date = connection.execute("SELECT max(market_date) FROM market_stage_daily WHERE ticker=?", [ticker]).fetchone()[0]
+    if market_date is None:
+        return None
+    cursor = connection.execute("SELECT * FROM market_stage_daily WHERE ticker=? AND market_date=?", [ticker, market_date])
+    names, row = [column[0] for column in cursor.description], cursor.fetchone()
+    if row is None:
+        return None
+    item = dict(zip(names, row))
+    item["reasons"] = json.loads(item.pop("reasons_json"))
+    item["evidence_factors"] = json.loads(item.pop("evidence_factors_json"))
+    return MarketStage(**item)
+
+
 def persist(connection, rows, quality):
     if quality.status == "FAIL":
         raise ValueError("Validation FAIL prevents persistence and indicator calculation")
@@ -202,6 +222,26 @@ def persist_evidence(connection, ticker, evidence):
         raise
     finally:
         connection.unregister("incoming_evidence")
+
+
+def persist_market_stages(connection, ticker, stages):
+    records = pd.DataFrame([{
+        **item.model_dump(exclude={"reasons", "evidence_factors"}),
+        "reasons_json": json.dumps(item.reasons, ensure_ascii=False),
+        "evidence_factors_json": json.dumps(item.evidence_factors, ensure_ascii=False),
+    } for item in stages])
+    records = records[["ticker","market_date","stage","reasons_json","evidence_factors_json","created_at"]]
+    connection.register("incoming_stages", records)
+    connection.execute("BEGIN TRANSACTION")
+    try:
+        connection.execute("DELETE FROM market_stage_daily WHERE ticker=?", [ticker])
+        connection.execute("INSERT INTO market_stage_daily SELECT * FROM incoming_stages")
+        connection.execute("COMMIT")
+    except Exception:
+        connection.execute("ROLLBACK")
+        raise
+    finally:
+        connection.unregister("incoming_stages")
 
 
 def record_quality(connection, ticker, quality):

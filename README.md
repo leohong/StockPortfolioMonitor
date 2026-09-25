@@ -1,6 +1,6 @@
 # 台股技術分析儀表板（繁體中文版）
 
-本專案已完成計畫中的第零至第四階段：真實行情、法人、融資融券、價格結構、七因素證據矩陣，以及五層同步互動圖。尚未進入第五階段。
+本專案已完成計畫中的第零至第五階段：真實行情、法人、融資融券、價格結構、七因素證據矩陣、市場階段，以及五層同步互動圖。尚未進入第六階段。
 
 ## 安裝與啟動
 
@@ -13,6 +13,7 @@ python -m venv .venv
 .\.venv\Scripts\python -m src.services.stock_service --ticker 3702 --phase2
 .\.venv\Scripts\python -m src.services.stock_service --ticker 3702 --phase3
 .\.venv\Scripts\python -m src.services.stock_service --ticker 3702 --phase4
+.\.venv\Scripts\python -m src.services.stock_service --ticker 3702 --phase5
 .\.venv\Scripts\python -m streamlit run app.py --server.address 127.0.0.1 --browser.gatherUsageStats false
 ```
 
@@ -56,6 +57,8 @@ MA、RSI、TWSE 等標準縮寫保留。應用程式內容使用繁體中文；S
 
 第四階段將價格結構、RSI、移動平均線、成交量、三大法人、融資與支撐壓力保存為七份獨立的結構化證據。每份證據包含狀態、標題、目前數值、觀察值、推理及來源日期；缺少必要資料時明確標示資料不足，不產生單一買賣分數。
 
+第五階段以固定規則與優先序判定下降趨勢、初步築底、底部確認、上升趨勢、過熱、高檔修正、結構轉弱、過渡期或無法分類。每個交易日保存判定理由及引用的證據因素；階段是證據摘要，不是買賣建議。
+
 ## 計算規則
 
 均線採完整交易日視窗。RSI14 以首 14 個每日漲跌的平均漲幅、平均跌幅起算，再依 Wilder 平滑遞推；第 15 筆才有首個 RSI，第 60 筆才有首個 MA60。全平盤 RSI 為 50、只有上漲為 100、只有下跌為 0。收盤價缺漏時重新累積 RSI 所需歷史。
@@ -84,6 +87,6 @@ MA、RSI、TWSE 等標準縮寫保留。應用程式內容使用繁體中文；S
 .\.venv\Scripts\python -m pytest -q
 ```
 
-測試離線執行，使用官方封存資料與獨立暫存資料庫。數學測試用人工數列僅存在於測試中。驗收結果請見 [第一階段](docs/PHASE1_ACCEPTANCE.md)、[第二階段](docs/PHASE2_ACCEPTANCE.md)、[第三階段](docs/PHASE3_ACCEPTANCE.md)與[第四階段](docs/PHASE4_ACCEPTANCE.md)驗收紀錄。
+測試離線執行，使用官方封存資料與獨立暫存資料庫。數學測試用人工數列僅存在於測試中。驗收結果請見 [第一階段](docs/PHASE1_ACCEPTANCE.md)、[第二階段](docs/PHASE2_ACCEPTANCE.md)、[第三階段](docs/PHASE3_ACCEPTANCE.md)、[第四階段](docs/PHASE4_ACCEPTANCE.md)與[第五階段](docs/PHASE5_ACCEPTANCE.md)驗收紀錄。
 
 開發與後續階段的執行門檻、資料正確性及精簡工具輸出規則記錄於 `AGENTS.md`。後續應依實作計畫逐階段完成，不跨越未通過的驗收門檻。

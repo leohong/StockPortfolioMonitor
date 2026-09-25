@@ -4,8 +4,8 @@ from src.i18n import STATUS, RANGE_LABELS, FIELDS, message, display_value
 
 from src.config import load_config
 from src.charts.stock_chart import stock_chart, RANGES
-from src.services.stock_service import load_stock, refresh, refresh_phase2, refresh_phase3, refresh_phase4
-from src.database.db import connect, read_institutional, read_margin, read_pivots, read_levels, read_structure, read_evidence
+from src.services.stock_service import load_stock, refresh, refresh_phase2, refresh_phase3, refresh_phase4, refresh_phase5
+from src.database.db import connect, read_institutional, read_margin, read_pivots, read_levels, read_structure, read_evidence, read_market_stage
 
 STRUCTURE_STATES = {"UPTREND_STRUCTURE": "上升結構", "DOWNTREND_STRUCTURE": "下降結構",
                     "POSSIBLE_BASE": "可能築底", "POSSIBLE_TOP": "可能築頂",
@@ -14,6 +14,9 @@ FACTOR_LABELS = {"price_structure":"價格結構", "rsi":"相對強弱指標", "
                  "volume":"成交量", "institutional":"三大法人", "margin":"融資",
                  "support_resistance":"支撐／壓力"}
 EVIDENCE_STATUS = {"BULLISH":"偏多", "NEUTRAL":"中性", "BEARISH":"偏空", "WARNING":"警示", "INSUFFICIENT_DATA":"資料不足"}
+STAGE_LABELS = {"A_DOWNTREND":"A｜下降趨勢", "B_EARLY_BASE":"B｜初步築底", "C_BASE_CONFIRMATION":"C｜底部確認",
+                "D_UPTREND":"D｜上升趨勢", "E_OVERHEATED":"E｜過熱", "F_HIGH_LEVEL_CORRECTION":"F｜高檔修正",
+                "G_STRUCTURE_WEAKENING":"G｜結構轉弱", "TRANSITION":"過渡期", "UNCLASSIFIED":"無法分類"}
 
 
 def stock_detail():
@@ -21,7 +24,7 @@ def stock_detail():
     with connect(settings.database):
         pass
     st.title("台股技術分析儀表板")
-    st.caption("第四階段 · 七因素證據矩陣 · 證交所官方資料與五層互動圖")
+    st.caption("第五階段 · 市場階段判定與七因素證據矩陣")
     holding = st.selectbox("股票", holdings, format_func=lambda h: f"{h.ticker} {h.name}")
     if st.button("更新市場資料", type="primary"):
         try:
@@ -30,6 +33,7 @@ def stock_detail():
                 refresh_phase2(settings, holding.ticker)
                 refresh_phase3(settings, holding.ticker)
                 refresh_phase4(settings, holding.ticker)
+                refresh_phase5(settings, holding.ticker)
             st.success("資料更新完成")
         except Exception as exc:
             st.error("更新失敗，已保留原有資料。請確認網路連線與官方來源是否可用。")
@@ -47,6 +51,7 @@ def stock_detail():
         margin_count = len(read_margin(db, holding.ticker))
         pivots, levels, structure = read_pivots(db, holding.ticker), read_levels(db, holding.ticker), read_structure(db, holding.ticker)
         evidence = read_evidence(db, holding.ticker)
+        market_stage = read_market_stage(db, holding.ticker)
     if institutional_count < 250 or margin_count < 250:
         st.warning(f"第二階段資料尚未完成：法人 {institutional_count}/250 日、融資融券 {margin_count}/250 日。請按「更新市場資料」。")
         return
@@ -55,6 +60,12 @@ def stock_detail():
     b.metric("最新交易日", str(latest.market_date))
     c.metric("資料品質", STATUS[quality.status])
     st.caption(f"行情 {len(data)} 日 · 法人 {institutional_count} 日 · 融資融券 {margin_count} 日 · 成交量／法人：股 · 融資融券：交易單位")
+    if market_stage:
+        st.subheader("市場階段")
+        st.markdown(f"### {STAGE_LABELS[market_stage.stage]}")
+        for reason in market_stage.reasons:
+            st.write(f"• {reason}")
+        st.caption("判定依固定規則與優先序產生；市場階段是證據摘要，不是買賣建議。")
     if structure:
         st.subheader("價格結構")
         st.write(f"狀態：**{STRUCTURE_STATES[structure.state]}**　高點證據：{structure.high_label or '—'} {structure.high_pivot_date or '—'} / {structure.high_price or '—'} 元　低點證據：{structure.low_label or '—'} {structure.low_pivot_date or '—'} / {structure.low_price or '—'} 元")

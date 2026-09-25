@@ -15,11 +15,12 @@ from src.data.phase2_validator import validate_phase2
 from src.data.providers.twse_phase2 import fetch_daily
 from src.database.db import (connect, read_rows, persist, record_quality, frame,
                              read_institutional, read_margin, persist_phase2, persist_phase3)
-from src.database.db import read_pivots, read_levels, read_structure, persist_evidence
+from src.database.db import read_pivots, read_levels, read_structure, persist_evidence, read_evidence, persist_market_stages
 from src.indicators.core import calculate
 from src.analysis.phase2_metrics import calculate_phase2
 from src.analysis.price_structure import detect_pivots, structure_snapshot, derive_levels
 from src.analysis.evidence import build_evidence
+from src.analysis.market_stage import classify_stage
 from src.logging_config import event, configure_logging
 
 
@@ -169,6 +170,25 @@ def refresh_phase4(settings, ticker: str):
     return evidence[-7:]
 
 
+def refresh_phase5(settings, ticker: str):
+    data, quality = load_stock(settings, ticker)
+    if quality.status == "FAIL" or data.empty:
+        raise ValueError("Phase 5 requires validated Phase 1–4 data")
+    stages, previous_row, previous_stage = [], None, None
+    with connect(settings.database) as db:
+        for row in data.itertuples():
+            day = pd.Timestamp(row.market_date).date()
+            evidence = read_evidence(db, ticker, day)
+            if len(evidence) != 7:
+                raise ValueError(f"Phase 4 evidence missing for {day}")
+            stage = classify_stage(row, read_structure(db, ticker, day), evidence, previous_row, previous_stage)
+            stages.append(stage)
+            previous_row, previous_stage = row, stage.stage
+        persist_market_stages(db, ticker, stages)
+    event("ANALYSIS_COMPLETE", ticker=ticker, dataset="phase5", stages=len(stages))
+    return stages[-1]
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--ticker", default="3702")
@@ -176,8 +196,9 @@ if __name__ == "__main__":
     parser.add_argument("--phase2", action="store_true", help="Fetch official institutional and margin data")
     parser.add_argument("--phase3", action="store_true", help="Calculate confirmed price structure")
     parser.add_argument("--phase4", action="store_true", help="Build seven-factor evidence matrix")
+    parser.add_argument("--phase5", action="store_true", help="Classify deterministic market stages")
     args = parser.parse_args()
     configure_logging()
     settings, _, _ = load_config()
-    result = refresh_phase4(settings, args.ticker) if args.phase4 else (refresh_phase3(settings, args.ticker) if args.phase3 else (refresh_phase2(settings, args.ticker, full=args.full) if args.phase2 else refresh(settings, args.ticker, full=args.full)))
+    result = refresh_phase5(settings, args.ticker) if args.phase5 else (refresh_phase4(settings, args.ticker) if args.phase4 else (refresh_phase3(settings, args.ticker) if args.phase3 else (refresh_phase2(settings, args.ticker, full=args.full) if args.phase2 else refresh(settings, args.ticker, full=args.full))))
     print("\n".join(item.model_dump_json(indent=2) for item in result) if isinstance(result, list) else result.model_dump_json(indent=2))
