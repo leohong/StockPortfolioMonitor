@@ -23,8 +23,8 @@ def load_config(root: Path = ROOT):
     settings.database = root / settings.database
     settings.cache_dir = root / settings.cache_dir
     holdings = [Holding(**h) for h in yaml.safe_load((root / "config/holdings.yaml").read_text("utf-8"))["holdings"]]
-    if not holdings or len({h.ticker for h in holdings}) != len(holdings):
-        raise ValueError("Holdings must be nonempty and have unique tickers")
+    if not holdings or len(holdings) > 100 or len({h.ticker for h in holdings}) != len(holdings):
+        raise ValueError("Holdings must contain 1–100 unique tickers")
     source = yaml.safe_load((root / "config/sources.yaml").read_text("utf-8"))["twse"]
     if source["endpoint"] != "https://www.twse.com.tw/exchangeReport/STOCK_DAY":
         raise ValueError("Phase 1 supports the official TWSE STOCK_DAY endpoint only")

@@ -7,6 +7,7 @@ from src.charts.stock_chart import stock_chart, RANGES
 from src.services.stock_service import load_stock, refresh, refresh_phase2, refresh_phase3, refresh_phase4, refresh_phase5, refresh_phase6
 from src.database.db import (connect, read_institutional, read_margin, read_pivots, read_levels, read_structure,
                              read_evidence, read_market_stage, read_snapshots, read_change_events)
+from src.services.portfolio_service import load_portfolio, filter_portfolio
 
 STRUCTURE_STATES = {"UPTREND_STRUCTURE": "上升結構", "DOWNTREND_STRUCTURE": "下降結構",
                     "POSSIBLE_BASE": "可能築底", "POSSIBLE_TOP": "可能築頂",
@@ -25,9 +26,14 @@ def stock_detail():
     settings, holdings, _ = load_config()
     with connect(settings.database):
         pass
+    if st.button("← 返回投資組合雷達"):
+        st.session_state.view = "portfolio"
+        st.rerun()
     st.title("台股技術分析儀表板")
     st.caption("第六階段 · 每日快照、昨日與今日、變化偵測")
-    holding = st.selectbox("股票", holdings, format_func=lambda h: f"{h.ticker} {h.name}")
+    selected_ticker = st.session_state.get("selected_ticker")
+    selected_index = next((i for i,item in enumerate(holdings) if item.ticker == selected_ticker), 0)
+    holding = st.selectbox("股票", holdings, index=selected_index, format_func=lambda h: f"{h.ticker} {h.name}")
     if st.button("更新市場資料", type="primary"):
         try:
             with st.spinner("取得官方資料、驗證並儲存…"):
@@ -130,3 +136,51 @@ def stock_detail():
         for column in ("source_type", "is_official", "volume_unit", "turnover_unit"):
             display[column] = display[column].map(display_value)
         st.dataframe(display.rename(columns=FIELDS), hide_index=True)
+
+
+def portfolio_radar():
+    settings, holdings, _ = load_config()
+    data = load_portfolio(settings, holdings)
+    st.title("投資組合雷達")
+    st.caption("第七階段 · 從最新資料庫快照快速找出需要注意的持股；不進行最佳到最差排名。")
+    valid = data[data.market_date.notna()]
+    latest_date = valid.market_date.max() if not valid.empty else None
+    if latest_date is not None and hasattr(latest_date, "date"):
+        latest_date = latest_date.date()
+    top = st.columns(5)
+    top[0].metric("持股數", len(holdings))
+    top[1].metric("今日階段變化", int(data.stage_changed.sum()))
+    top[2].metric("重要警示", int(data.important_count.sum()))
+    top[3].metric("資料品質警告", int((data.quality != "PASS").sum()))
+    top[4].metric("最新資料日", str(latest_date) if latest_date else "尚無")
+    if valid.empty:
+        st.warning("尚無完整分析快照。請先進入個股詳情更新市場資料。")
+    a,b,c,d = st.columns([2,2,2,1])
+    search = a.text_input("搜尋股票代號或名稱")
+    available_stages = sorted(x for x in data.stage.dropna().unique())
+    stage_filter = b.multiselect("市場階段", available_stages, format_func=lambda x: STAGE_LABELS.get(x,x))
+    alert_filter = c.selectbox("警示篩選", ["全部","有重要警示","有任何變化","資料品質警告"])
+    changed_only = d.toggle("只看有變化")
+    filtered = filter_portfolio(data, search, stage_filter, alert_filter, changed_only)
+    display = filtered.copy()
+    display["stock"] = display.ticker + " " + display["name"]
+    display["stage_label"] = display.stage.map(lambda x: STAGE_LABELS.get(x,"尚無"))
+    display["structure"] = display.structure.map(lambda x: STRUCTURE_STATES.get(x,"尚無"))
+    display["changed_label"] = display.changed.map({True:"是",False:"否"})
+    columns = {"stock":"股票", "price":"價格", "cost":"成本", "profit_pct":"損益（%）", "stage_label":"市場階段",
+        "rsi":"RSI", "structure":"價格結構", "ma":"均線", "foreign_5d":"外資 5 日", "trust_5d":"投信 5 日",
+        "margin_20d_pct":"融資 20 日（%）", "key_risk":"主要風險／事件", "changed_label":"有變化"}
+    event = st.dataframe(display[list(columns)].rename(columns=columns), hide_index=True, width="stretch",
+        on_select="rerun", selection_mode="single-row", key="portfolio_table")
+    if event.selection.rows:
+        selected = filtered.iloc[event.selection.rows[0]]
+        st.session_state.selected_ticker = selected.ticker
+        st.session_state.view = "detail"
+        st.rerun()
+    st.caption(f"顯示 {len(filtered)}／{len(data)} 檔；可點選任一列開啟個股詳情。表格欄位可直接排序。")
+
+
+def application():
+    if "view" not in st.session_state:
+        st.session_state.view = "portfolio"
+    portfolio_radar() if st.session_state.view == "portfolio" else stock_detail()

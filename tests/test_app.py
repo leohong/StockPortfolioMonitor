@@ -35,7 +35,9 @@ def test_streamlit_real_data_and_ranges(tmp_path, real_rows, monkeypatch):
     def no_network(*args):
         raise AssertionError("Rendering must never fetch")
     monkeypatch.setattr("src.ui.refresh", no_network)
-    app = AppTest.from_file(ROOT / "app.py").run(timeout=30)
+    app = AppTest.from_file(ROOT / "app.py")
+    app.session_state["view"] = "detail"
+    app = app.run(timeout=30)
     assert not app.exception
     for selected in ("20D", "60D", "120D", "1Y"):
         app.radio[0].set_value(selected).run(timeout=30)
