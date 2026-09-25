@@ -4,7 +4,7 @@ from plotly.subplots import make_subplots
 RANGES = {"20D": 20, "60D": 60, "120D": 120, "1Y": None}
 
 
-def stock_chart(data, selected="120D"):
+def stock_chart(data, selected="120D", pivots=None, levels=None):
     if selected not in RANGES:
         raise ValueError("Unknown date range")
     visible = data.copy()
@@ -24,6 +24,17 @@ def stock_chart(data, selected="120D"):
     raw_hover = [f"{r.market_date}<br>開盤價 {r.open:.2f}<br>最高價 {r.high:.2f}<br>最低價 {r.low:.2f}<br>收盤價 {r.close:.2f}<br>成交量 {r.volume:,} 股<br>成交金額 {r.turnover:,} 元" for r in visible.itertuples()]
     fig.add_trace(go.Candlestick(x=dates, open=visible.open, high=visible.high, low=visible.low, close=visible.close,
                                 name="開高低收（新臺幣）", text=raw_hover, hoverinfo="text"), row=1, col=1)
+    if pivots:
+        start, end = dates.iloc[0], dates.iloc[-1]
+        for label, color, symbol in [("HH", "#d62728", "triangle-down"), ("LH", "#ff7f0e", "triangle-down"),
+                                     ("HL", "#2ca02c", "triangle-up"), ("LL", "#1f77b4", "triangle-up")]:
+            items = [p for p in pivots if p.structure_label == label and start <= p.pivot_date <= end]
+            if items:
+                fig.add_trace(go.Scatter(x=[p.pivot_date for p in items], y=[p.price for p in items], mode="markers+text",
+                    text=[label] * len(items), textposition="top center" if label in {"HH", "LH"} else "bottom center",
+                    marker=dict(color=color, symbol=symbol, size=10), name=label,
+                    customdata=[[p.confirmation_date, p.comparison_date, p.comparison_price] for p in items],
+                    hovertemplate="轉折日 %{x}<br>價格 %{y:.2f} 元<br>確認日 %{customdata[0]}<br>比較基準 %{customdata[1]} / %{customdata[2]:.2f} 元<extra>%{fullData.name}</extra>"), row=1, col=1)
     for window, color in [(5, "#e5ac28"), (20, "#2982c2"), (60, "#aa69bd")]:
         fig.add_trace(go.Scatter(x=dates, y=visible[f"ma{window}"], name=f"{window} 日均線", line=dict(color=color), hovertemplate="%{y:.4f} 元<extra>%{fullData.name}</extra>"), row=1, col=1)
     fig.add_trace(go.Bar(x=dates, y=visible.volume, name="成交量（股）", text=raw_hover, textposition="none", hovertemplate="%{text}<extra></extra>", marker_color="#6f9ab8"), row=2, col=1)
@@ -41,6 +52,9 @@ def stock_chart(data, selected="120D"):
     fig.add_trace(go.Scatter(x=dates, y=visible.rsi14, name="相對強弱指標 RSI14", hovertemplate="%{y:.4f}<extra>RSI14</extra>"), row=5, col=1)
     for value in (30, 50, 70):
         fig.add_hline(y=value, line_dash="dot", line_color="#888", row=5, col=1)
+    for level in levels or []:
+        color = "#2ca02c" if level.level_type == "SUPPORT" else "#d62728"
+        fig.add_hline(y=level.price, line_dash="dash", line_color=color, annotation_text=f"{level.level_type[0]}{level.rank} {level.price:.2f}｜{level.derivation}", row=1, col=1)
     fig.update_yaxes(title_text="新臺幣", row=1, col=1)
     fig.update_yaxes(title_text="股", row=2, col=1)
     fig.update_yaxes(title_text="法人買賣超（股）", row=3, col=1)

@@ -2,3 +2,6 @@ database: data/stocks.duckdb
 cache_dir: data/cache
 history_months: 15
 stale_days: 7
+pivot_left_bars: 3
+pivot_right_bars: 3
+level_tolerance_pct: 2.0

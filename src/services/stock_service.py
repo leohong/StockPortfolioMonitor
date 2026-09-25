@@ -1,6 +1,7 @@
 import argparse
 import httpx
 import time
+import pandas as pd
 from datetime import date
 from zoneinfo import ZoneInfo
 from datetime import datetime
@@ -13,9 +14,10 @@ from src.data.phase2_normalizer import normalize_institutional, normalize_margin
 from src.data.phase2_validator import validate_phase2
 from src.data.providers.twse_phase2 import fetch_daily
 from src.database.db import (connect, read_rows, persist, record_quality, frame,
-                             read_institutional, read_margin, persist_phase2)
+                             read_institutional, read_margin, persist_phase2, persist_phase3)
 from src.indicators.core import calculate
 from src.analysis.phase2_metrics import calculate_phase2
+from src.analysis.price_structure import detect_pivots, structure_snapshot, derive_levels
 from src.logging_config import event, configure_logging
 
 
@@ -133,13 +135,28 @@ def refresh_phase2(settings, ticker: str, full: bool = False, limit: int = 250):
         raise
 
 
+def refresh_phase3(settings, ticker: str):
+    data, quality = load_stock(settings, ticker)
+    if quality.status == "FAIL" or data.empty:
+        raise ValueError("Phase 3 requires validated OHLCV data")
+    pivots = detect_pivots(data, settings.pivot_left_bars, settings.pivot_right_bars)
+    dates = pd.to_datetime(data.market_date).dt.date.tolist()
+    snapshots = [structure_snapshot(ticker, day, pivots) for day in dates]
+    levels = [level for day in dates for level in derive_levels(data, pivots, day, settings.level_tolerance_pct)]
+    with connect(settings.database) as db:
+        persist_phase3(db, ticker, pivots, snapshots, levels)
+    event("ANALYSIS_COMPLETE", ticker=ticker, dataset="phase3", pivots=len(pivots), levels=len(levels))
+    return snapshots[-1]
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--ticker", default="3702")
     parser.add_argument("--full", action="store_true", help="Re-fetch configured history to review older source revisions")
     parser.add_argument("--phase2", action="store_true", help="Fetch official institutional and margin data")
+    parser.add_argument("--phase3", action="store_true", help="Calculate confirmed price structure")
     args = parser.parse_args()
     configure_logging()
     settings, _, _ = load_config()
-    action = refresh_phase2 if args.phase2 else refresh
-    print(action(settings, args.ticker, full=args.full).model_dump_json(indent=2))
+    result = refresh_phase3(settings, args.ticker) if args.phase3 else (refresh_phase2(settings, args.ticker, full=args.full) if args.phase2 else refresh(settings, args.ticker, full=args.full))
+    print(result.model_dump_json(indent=2))

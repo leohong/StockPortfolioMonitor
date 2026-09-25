@@ -13,6 +13,9 @@ class Settings(BaseModel):
     cache_dir: Path
     history_months: int = Field(default=15, ge=13, le=120)
     stale_days: int = Field(default=7, ge=1)
+    pivot_left_bars: int = Field(default=3, ge=1, le=20)
+    pivot_right_bars: int = Field(default=3, ge=1, le=20)
+    level_tolerance_pct: float = Field(default=2.0, gt=0, le=10)
 
 
 def load_config(root: Path = ROOT):

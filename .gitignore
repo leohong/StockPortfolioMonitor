@@ -2,6 +2,8 @@
 __pycache__/
 .pytest_cache/
 pytest-cache-files-*/
+.tmp/
+.test-tmp/
 *.egg-info/
 .env
 data/*

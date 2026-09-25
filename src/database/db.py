@@ -4,7 +4,7 @@ from pathlib import Path
 import duckdb
 import pandas as pd
 
-from src.models import OHLCV, InstitutionalDaily, MarginDaily
+from src.models import OHLCV, InstitutionalDaily, MarginDaily, PricePivot, PriceLevel, StructureSnapshot
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS ohlcv_daily (
@@ -26,9 +26,22 @@ CREATE TABLE IF NOT EXISTS margin_daily (
  short_cover BIGINT, short_stock_repayment BIGINT, short_balance BIGINT,
  source VARCHAR, source_type VARCHAR, is_official BOOLEAN, retrieved_at TIMESTAMPTZ,
  unit VARCHAR, source_note VARCHAR, PRIMARY KEY(ticker, market_date));
+CREATE TABLE IF NOT EXISTS price_pivots (
+ ticker VARCHAR, pivot_date DATE, confirmation_date DATE, pivot_kind VARCHAR, price DOUBLE,
+ structure_label VARCHAR, comparison_date DATE, comparison_price DOUBLE, signal_type VARCHAR,
+ annotation_type VARCHAR, PRIMARY KEY(ticker,pivot_date,pivot_kind));
+CREATE TABLE IF NOT EXISTS structure_snapshots (
+ ticker VARCHAR, market_date DATE, state VARCHAR, high_label VARCHAR, high_pivot_date DATE,
+ high_price DOUBLE, low_label VARCHAR, low_pivot_date DATE, low_price DOUBLE,
+ PRIMARY KEY(ticker,market_date));
+CREATE TABLE IF NOT EXISTS price_levels (
+ ticker VARCHAR, market_date DATE, level_type VARCHAR, rank INTEGER, price DOUBLE,
+ derivation VARCHAR, evidence_date DATE, source_confirmation_date DATE,
+ PRIMARY KEY(ticker,market_date,level_type,rank));
 CREATE TABLE IF NOT EXISTS schema_version(version INTEGER PRIMARY KEY);
 INSERT INTO schema_version VALUES (1) ON CONFLICT DO NOTHING;
 INSERT INTO schema_version VALUES (2) ON CONFLICT DO NOTHING;
+INSERT INTO schema_version VALUES (3) ON CONFLICT DO NOTHING;
 """
 
 
@@ -69,6 +82,29 @@ def read_margin(connection, ticker):
     return read_typed_rows(connection, "margin_daily", MarginDaily, ticker)
 
 
+def _read_models(connection, query, params, model):
+    cursor = connection.execute(query, params)
+    names = [column[0] for column in cursor.description]
+    return [model(**dict(zip(names, row))) for row in cursor.fetchall()]
+
+
+def read_pivots(connection, ticker):
+    return _read_models(connection, "SELECT * FROM price_pivots WHERE ticker=? ORDER BY confirmation_date,pivot_date", [ticker], PricePivot)
+
+
+def read_levels(connection, ticker, market_date=None):
+    if market_date is None:
+        market_date = connection.execute("SELECT max(market_date) FROM price_levels WHERE ticker=?", [ticker]).fetchone()[0]
+    return [] if market_date is None else _read_models(connection, "SELECT * FROM price_levels WHERE ticker=? AND market_date=? ORDER BY level_type,rank", [ticker, market_date], PriceLevel)
+
+
+def read_structure(connection, ticker, market_date=None):
+    if market_date is None:
+        market_date = connection.execute("SELECT max(market_date) FROM structure_snapshots WHERE ticker=?", [ticker]).fetchone()[0]
+    rows = [] if market_date is None else _read_models(connection, "SELECT * FROM structure_snapshots WHERE ticker=? AND market_date=?", [ticker, market_date], StructureSnapshot)
+    return rows[0] if rows else None
+
+
 def persist(connection, rows, quality):
     if quality.status == "FAIL":
         raise ValueError("Validation FAIL prevents persistence and indicator calculation")
@@ -104,6 +140,26 @@ def persist_phase2(connection, institutional, margin, quality):
     finally:
         connection.unregister("incoming_institutional")
         connection.unregister("incoming_margin")
+
+
+def persist_phase3(connection, ticker, pivots, snapshots, levels):
+    frames = {"incoming_pivots": frame(pivots), "incoming_snapshots": frame(snapshots), "incoming_levels": frame(levels)}
+    for name, records in frames.items():
+        connection.register(name, records)
+    connection.execute("BEGIN TRANSACTION")
+    try:
+        for table in ("price_pivots", "structure_snapshots", "price_levels"):
+            connection.execute(f"DELETE FROM {table} WHERE ticker=?", [ticker])
+        connection.execute("INSERT INTO price_pivots SELECT * FROM incoming_pivots")
+        connection.execute("INSERT INTO structure_snapshots SELECT * FROM incoming_snapshots")
+        connection.execute("INSERT INTO price_levels SELECT * FROM incoming_levels")
+        connection.execute("COMMIT")
+    except Exception:
+        connection.execute("ROLLBACK")
+        raise
+    finally:
+        for name in frames:
+            connection.unregister(name)
 
 
 def record_quality(connection, ticker, quality):

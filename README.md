@@ -1,6 +1,6 @@
 # 台股技術分析儀表板（繁體中文版）
 
-本專案已完成計畫中的第零、第一與第二階段：真實行情、法人、融資融券，以及五層同步互動圖。尚未進入第三階段。
+本專案已完成計畫中的第零至第三階段：真實行情、法人、融資融券、價格結構，以及五層同步互動圖。尚未進入第四階段。
 
 ## 安裝與啟動
 
@@ -11,6 +11,7 @@ python -m venv .venv
 .\.venv\Scripts\python -m pip install -e ".[dev]"
 .\.venv\Scripts\python -m src.services.stock_service --ticker 3702
 .\.venv\Scripts\python -m src.services.stock_service --ticker 3702 --phase2
+.\.venv\Scripts\python -m src.services.stock_service --ticker 3702 --phase3
 .\.venv\Scripts\python -m streamlit run app.py --server.address 127.0.0.1 --browser.gatherUsageStats false
 ```
 
@@ -49,6 +50,8 @@ MA、RSI、TWSE 等標準縮寫保留。應用程式內容使用繁體中文；S
 官方數值變更會記錄原值與新值，原始回應亦保留。單檔股票更新採完整交易：任一月份失敗便不提交部分結果。來源暫時無資料、新上市股票歷史不足或當月尚無資料時，更新可能被阻擋；不會以假資料替代。請避免命令列與介面同時寫入 DuckDB。
 
 第二階段首次下載最近 250 個行情交易日。官方每日介面可能暫時限流；程式會退避後重試，並以內容雜湊封存每個原始回應。再次執行會重用已驗證快取，只下載缺少日期。使用 `--phase2 --full` 可強制重新下載全部 250 日。
+
+第三階段不需網路：它從已驗證資料計算確認型轉折、HH／HL／LH／LL、結構狀態與兩級支撐壓力。設定檔可調整左右確認日數與價位合併容差；每個 pivot 同時保存轉折日及確認日，歷史快照只會使用當時已確認的資料。
 
 ## 計算規則
 

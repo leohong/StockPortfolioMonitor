@@ -67,3 +67,39 @@ class MarginDaily(BaseModel):
     retrieved_at: datetime
     unit: Literal["trading_units"] = "trading_units"
     source_note: str = ""
+
+
+class PricePivot(BaseModel):
+    ticker: str
+    pivot_date: date
+    confirmation_date: date
+    pivot_kind: Literal["HIGH", "LOW"]
+    price: float
+    structure_label: Literal["HH", "HL", "LH", "LL"] | None = None
+    comparison_date: date | None = None
+    comparison_price: float | None = None
+    signal_type: Literal["REAL_TIME_SIGNAL"] = "REAL_TIME_SIGNAL"
+    annotation_type: Literal["RETROSPECTIVE_ANNOTATION"] = "RETROSPECTIVE_ANNOTATION"
+
+
+class StructureSnapshot(BaseModel):
+    ticker: str
+    market_date: date
+    state: Literal["UPTREND_STRUCTURE", "DOWNTREND_STRUCTURE", "POSSIBLE_BASE", "POSSIBLE_TOP", "RANGE", "UNCONFIRMED"]
+    high_label: str | None = None
+    high_pivot_date: date | None = None
+    high_price: float | None = None
+    low_label: str | None = None
+    low_pivot_date: date | None = None
+    low_price: float | None = None
+
+
+class PriceLevel(BaseModel):
+    ticker: str
+    market_date: date
+    level_type: Literal["SUPPORT", "RESISTANCE"]
+    rank: int
+    price: float
+    derivation: str
+    evidence_date: date
+    source_confirmation_date: date | None = None
