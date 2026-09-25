@@ -1,5 +1,6 @@
 import hashlib
 import json
+import logging
 from datetime import date, datetime, timezone
 from pathlib import Path
 
@@ -33,7 +34,7 @@ def fetch_daily(dataset: str, market_date: date, cache_dir: Path, client: httpx.
                 metadata_path = archive.with_name(f"{archive.stem}.metadata.json")
                 metadata = json.loads(metadata_path.read_text("utf-8"))
                 return {**metadata, "payload": payload}
-    event("DATA_FETCH_START", dataset=dataset, market_date=market_date)
+    event("DATA_FETCH_START", level=logging.DEBUG, dataset=dataset, market_date=market_date)
     owns_client = client is None
     client = client or httpx.Client(timeout=30, follow_redirects=True)
     try:
@@ -57,5 +58,5 @@ def fetch_daily(dataset: str, market_date: date, cache_dir: Path, client: httpx.
         json.dumps(metadata, indent=2, ensure_ascii=False), "utf-8")
     if payload.get("stat") != "OK" or payload.get("date") != market_date.strftime("%Y%m%d"):
         raise SourceError(f"TWSE {dataset} unavailable or date mismatch for {market_date}: {payload.get('stat')}")
-    event("DATA_FETCH_SUCCESS", dataset=dataset, market_date=market_date, sha256=digest)
+    event("DATA_FETCH_SUCCESS", level=logging.DEBUG, dataset=dataset, market_date=market_date, sha256=digest)
     return envelope
