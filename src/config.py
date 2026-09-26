@@ -27,6 +27,12 @@ class Settings(BaseModel):
     positioning_margin_expansion_pct: float = Field(default=10.0, gt=0)
     positioning_crowded_margin_pct: float = Field(default=20.0, gt=0)
     positioning_deleveraging_pct: float = Field(default=-5.0, lt=0)
+    volatility_compressed_percentile: float = Field(default=0.2, ge=0, le=1)
+    volatility_expanding_percentile: float = Field(default=0.7, ge=0, le=1)
+    volatility_high_percentile: float = Field(default=0.9, ge=0, le=1)
+    volatility_shock_range_ratio: float = Field(default=2.5, gt=1)
+    location_near_pct: float = Field(default=2.0, gt=0, le=10)
+    location_at_pct: float = Field(default=0.5, gt=0, le=5)
 
 
 def load_config(root: Path = ROOT):

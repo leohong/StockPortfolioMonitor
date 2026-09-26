@@ -5,8 +5,8 @@ import json
 import pandas as pd
 
 from src.models_v3 import (BenchmarkDaily, CapitalFlowState, MomentumState, ParticipationState,
-                           PositioningState, RegimeEvidence, RelativeStrengthState,
-                           SectorClassification, TrendQuality)
+                           PositioningState, RegimeEvidence, RelativeStrengthState, SectorClassification,
+                           TrendQuality, VolatilityState, AnchoredVWAP, LocationZone, LocationState)
 
 
 def persist_benchmark(connection, rows: list[BenchmarkDaily]) -> None:
@@ -182,3 +182,43 @@ def read_latest_m4(connection, ticker: str, as_of=None):
     names=[column[0] for column in cursor.description]
     result["capital_flow"]=[dict(zip(names,row)) for row in cursor.fetchall()]
     return result
+
+
+def persist_volatility(connection, rows: list[VolatilityState]):
+    columns=["ticker","market_date","state","atr14","atr14_pct","historical_volatility_20d","range_ratio",
+        "gap_pct","volatility_percentile","observations_json","missing_inputs_json","source_dates_json",
+        "analysis_version","ruleset_version","created_at"]
+    _persist_versioned_rows(connection,"volatility_daily",rows,columns,("observations","missing_inputs","source_dates"))
+
+
+def _persist_custom(connection,table,rows,columns,json_fields,identity_fields):
+    for item in rows:
+        values=item.model_dump()
+        for field in json_fields: values[f"{field}_json"]=json.dumps(values.pop(field),ensure_ascii=False,sort_keys=True,default=str)
+        identity=[values[field] for field in identity_fields]
+        existing=connection.execute(f"SELECT {','.join(columns)} FROM {table} WHERE "+" AND ".join(f"{field}=?" for field in identity_fields),identity).fetchone()
+        payload=tuple(values[column] for column in columns)
+        if existing is not None:
+            comparable=[i for i,column in enumerate(columns) if column!="created_at"]
+            if any(existing[i]!=payload[i] for i in comparable): raise ValueError(f"Persisted {table} row is immutable for this version identity")
+            continue
+        connection.execute(f"INSERT INTO {table} ({','.join(columns)}) VALUES ({','.join('?' for _ in columns)})",list(payload))
+
+
+def persist_anchored_vwap(connection,rows:list[AnchoredVWAP]):
+    columns=["ticker","market_date","anchor_type","anchor_date","confirmation_date","anchor_price","avwap","derivation",
+        "source_dates_json","price_basis","analysis_version","ruleset_version","created_at"]
+    _persist_custom(connection,"anchored_vwap_daily",rows,columns,("source_dates",),("ticker","market_date","anchor_type","anchor_date","analysis_version","ruleset_version"))
+
+
+def persist_location_zones(connection,rows:list[LocationZone]):
+    columns=["ticker","market_date","zone_type","rank","zone_low","zone_high","level_types_json","derivations_json",
+        "strength_class","source_dates_json","analysis_version","ruleset_version","created_at"]
+    _persist_custom(connection,"location_zones",rows,columns,("level_types","derivations","source_dates"),("ticker","market_date","zone_type","rank","analysis_version","ruleset_version"))
+
+
+def persist_location_states(connection,rows:list[LocationState]):
+    columns=["ticker","market_date","state","close","support_zone_low","support_zone_high","resistance_zone_low",
+        "resistance_zone_high","distance_support_pct","distance_resistance_pct","observations_json","missing_inputs_json",
+        "source_dates_json","analysis_version","ruleset_version","created_at"]
+    _persist_versioned_rows(connection,"location_state_daily",rows,columns,("observations","missing_inputs","source_dates"))

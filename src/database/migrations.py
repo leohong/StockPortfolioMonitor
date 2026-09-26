@@ -113,6 +113,35 @@ MIGRATIONS: dict[int, str] = {
             PRIMARY KEY (ticker, market_date, analysis_version, ruleset_version)
         );
     """,
+    11: """
+        CREATE TABLE IF NOT EXISTS volatility_daily (
+            ticker VARCHAR, market_date DATE, state VARCHAR, atr14 DOUBLE, atr14_pct DOUBLE,
+            historical_volatility_20d DOUBLE, range_ratio DOUBLE, gap_pct DOUBLE,
+            volatility_percentile DOUBLE, observations_json VARCHAR, missing_inputs_json VARCHAR,
+            source_dates_json VARCHAR, analysis_version VARCHAR, ruleset_version VARCHAR, created_at TIMESTAMPTZ,
+            PRIMARY KEY (ticker, market_date, analysis_version, ruleset_version)
+        );
+        CREATE TABLE IF NOT EXISTS anchored_vwap_daily (
+            ticker VARCHAR, market_date DATE, anchor_type VARCHAR, anchor_date DATE, confirmation_date DATE,
+            anchor_price DOUBLE, avwap DOUBLE, derivation VARCHAR, source_dates_json VARCHAR,
+            price_basis VARCHAR, analysis_version VARCHAR, ruleset_version VARCHAR, created_at TIMESTAMPTZ,
+            PRIMARY KEY (ticker, market_date, anchor_type, anchor_date, analysis_version, ruleset_version)
+        );
+        CREATE TABLE IF NOT EXISTS location_zones (
+            ticker VARCHAR, market_date DATE, zone_type VARCHAR, rank INTEGER, zone_low DOUBLE, zone_high DOUBLE,
+            level_types_json VARCHAR, derivations_json VARCHAR, strength_class VARCHAR, source_dates_json VARCHAR,
+            analysis_version VARCHAR, ruleset_version VARCHAR, created_at TIMESTAMPTZ,
+            PRIMARY KEY (ticker, market_date, zone_type, rank, analysis_version, ruleset_version)
+        );
+        CREATE TABLE IF NOT EXISTS location_state_daily (
+            ticker VARCHAR, market_date DATE, state VARCHAR, close DOUBLE, support_zone_low DOUBLE,
+            support_zone_high DOUBLE, resistance_zone_low DOUBLE, resistance_zone_high DOUBLE,
+            distance_support_pct DOUBLE, distance_resistance_pct DOUBLE, observations_json VARCHAR,
+            missing_inputs_json VARCHAR, source_dates_json VARCHAR, analysis_version VARCHAR,
+            ruleset_version VARCHAR, created_at TIMESTAMPTZ,
+            PRIMARY KEY (ticker, market_date, analysis_version, ruleset_version)
+        );
+    """,
 }
 
 

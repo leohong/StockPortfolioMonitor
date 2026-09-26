@@ -209,3 +209,72 @@ class PositioningState(BaseModel):
     analysis_version: Literal["v3"] = "v3"
     ruleset_version: str
     created_at: datetime
+
+
+class VolatilityState(BaseModel):
+    ticker: str
+    market_date: date
+    state: Literal["COMPRESSED", "NORMAL", "EXPANDING", "HIGH", "SHOCK", "INSUFFICIENT_DATA"]
+    atr14: float | None = None
+    atr14_pct: float | None = None
+    historical_volatility_20d: float | None = None
+    range_ratio: float | None = None
+    gap_pct: float | None = None
+    volatility_percentile: float | None = None
+    observations: list[dict[str, Any]] = Field(default_factory=list)
+    missing_inputs: list[str] = Field(default_factory=list)
+    source_dates: list[date] = Field(default_factory=list)
+    analysis_version: Literal["v3"] = "v3"
+    ruleset_version: str
+    created_at: datetime
+
+
+class AnchoredVWAP(BaseModel):
+    ticker: str
+    market_date: date
+    anchor_type: Literal["CONFIRMED_SWING_LOW", "CONFIRMED_SWING_HIGH"]
+    anchor_date: date
+    confirmation_date: date
+    anchor_price: float
+    avwap: float
+    derivation: str
+    source_dates: list[date] = Field(default_factory=list)
+    price_basis: Literal["UNADJUSTED"] = "UNADJUSTED"
+    analysis_version: Literal["v3"] = "v3"
+    ruleset_version: str
+    created_at: datetime
+
+
+class LocationZone(BaseModel):
+    ticker: str
+    market_date: date
+    zone_type: Literal["SUPPORT", "RESISTANCE"]
+    rank: int = 1
+    zone_low: float
+    zone_high: float
+    level_types: list[str]
+    derivations: list[dict[str, Any]]
+    strength_class: Literal["SINGLE", "MODERATE", "STRONG"]
+    source_dates: list[date] = Field(default_factory=list)
+    analysis_version: Literal["v3"] = "v3"
+    ruleset_version: str
+    created_at: datetime
+
+
+class LocationState(BaseModel):
+    ticker: str
+    market_date: date
+    state: Literal["AT_SUPPORT", "NEAR_SUPPORT", "MID_RANGE", "NEAR_RESISTANCE", "AT_RESISTANCE", "BREAKOUT_ZONE", "BREAKDOWN_ZONE", "NO_CLEAR_LOCATION"]
+    close: float
+    support_zone_low: float | None = None
+    support_zone_high: float | None = None
+    resistance_zone_low: float | None = None
+    resistance_zone_high: float | None = None
+    distance_support_pct: float | None = None
+    distance_resistance_pct: float | None = None
+    observations: list[dict[str, Any]] = Field(default_factory=list)
+    missing_inputs: list[str] = Field(default_factory=list)
+    source_dates: list[date] = Field(default_factory=list)
+    analysis_version: Literal["v3"] = "v3"
+    ruleset_version: str
+    created_at: datetime

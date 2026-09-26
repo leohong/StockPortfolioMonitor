@@ -9,10 +9,13 @@ from src.analysis.versioning import V3_RULESET_VERSION, register_analysis_versio
 from src.analysis.participation import calculate_participation
 from src.analysis.flow import calculate_capital_flow
 from src.analysis.positioning import calculate_positioning
+from src.analysis.volatility import calculate_volatility
+from src.analysis.location import calculate_location
 from src.config import load_config
 from src.database.db import connect, frame, read_institutional, read_margin, read_pivots
 from src.database.v3 import (persist_momentum_states, persist_relative_strength, persist_trend_quality,
-                             persist_participation, persist_capital_flow, persist_positioning, read_benchmark)
+                             persist_participation, persist_capital_flow, persist_positioning, read_benchmark,
+                             persist_volatility, persist_anchored_vwap, persist_location_zones, persist_location_states)
 from src.services.stock_service import load_stock
 
 
@@ -66,11 +69,28 @@ def refresh_m4(settings, ticker: str, git_commit: str):
     return participation[-1],[item for item in flows if item.market_date==latest_day],positioning[-1]
 
 
+def refresh_m5(settings,ticker:str,git_commit:str):
+    stock,quality=load_stock(settings,ticker)
+    if quality.status=="FAIL" or stock.empty: raise ValueError("M5 requires validated V2 stock history")
+    with connect(settings.database) as db: pivots=read_pivots(db,ticker)
+    volatility=calculate_volatility(stock,V3_RULESET_VERSION,compressed=settings.volatility_compressed_percentile,
+        expanding=settings.volatility_expanding_percentile,high=settings.volatility_high_percentile,
+        shock_range=settings.volatility_shock_range_ratio)
+    avwaps,zones,locations=calculate_location(stock,pivots,V3_RULESET_VERSION,tolerance_pct=settings.level_tolerance_pct,
+        near_pct=settings.location_near_pct,at_pct=settings.location_at_pct)
+    version=version_record(git_commit,settings)
+    with connect(settings.database) as db:
+        register_analysis_version(db,version); persist_volatility(db,volatility); persist_anchored_vwap(db,avwaps)
+        persist_location_zones(db,zones); persist_location_states(db,locations)
+    latest=locations[-1].market_date
+    return volatility[-1],[x for x in avwaps if x.market_date==latest],[x for x in zones if x.market_date==latest],locations[-1]
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--git-commit", required=True)
     parser.add_argument("--ticker", default="3702")
     args = parser.parse_args()
     settings, _, _ = load_config()
-    participation,flows,positioning=refresh_m4(settings,args.ticker,args.git_commit)
-    for item in (participation,*flows,positioning): print(item.model_dump_json(indent=2))
+    volatility,avwaps,zones,location=refresh_m5(settings,args.ticker,args.git_commit)
+    for item in (volatility,*avwaps,*zones,location): print(item.model_dump_json(indent=2))

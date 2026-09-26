@@ -16,3 +16,9 @@ flow_persistence_ratio: 0.7
 positioning_margin_expansion_pct: 10.0
 positioning_crowded_margin_pct: 20.0
 positioning_deleveraging_pct: -5.0
+volatility_compressed_percentile: 0.2
+volatility_expanding_percentile: 0.7
+volatility_high_percentile: 0.9
+volatility_shock_range_ratio: 2.5
+location_near_pct: 2.0
+location_at_pct: 0.5
