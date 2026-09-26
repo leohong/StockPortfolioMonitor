@@ -26,6 +26,37 @@ MIGRATIONS: dict[int, str] = {
             PRIMARY KEY (ticker, market_date, analysis_version, ruleset_version)
         );
     """,
+    8: """
+        CREATE TABLE IF NOT EXISTS benchmark_daily (
+            symbol VARCHAR, market_date DATE, open DOUBLE, high DOUBLE, low DOUBLE, close DOUBLE,
+            volume BIGINT, turnover BIGINT, source VARCHAR, source_type VARCHAR, is_official BOOLEAN,
+            retrieved_at TIMESTAMPTZ, price_unit VARCHAR, volume_unit VARCHAR,
+            PRIMARY KEY (symbol, market_date)
+        );
+        CREATE TABLE IF NOT EXISTS sector_classification (
+            ticker VARCHAR, sector VARCHAR, industry VARCHAR, classification_source VARCHAR,
+            retrieved_at TIMESTAMPTZ, available_date DATE, effective_from DATE, effective_to DATE,
+            PRIMARY KEY (ticker, effective_from)
+        );
+        CREATE TABLE IF NOT EXISTS sector_benchmark_daily (
+            sector VARCHAR, symbol VARCHAR, market_date DATE, open DOUBLE, high DOUBLE, low DOUBLE,
+            close DOUBLE, volume BIGINT, source VARCHAR, source_type VARCHAR, is_official BOOLEAN,
+            retrieved_at TIMESTAMPTZ, PRIMARY KEY (sector, symbol, market_date)
+        );
+        CREATE TABLE IF NOT EXISTS market_breadth_daily (
+            market VARCHAR, market_date DATE, advancing_count INTEGER, declining_count INTEGER,
+            unchanged_count INTEGER, new_high_count INTEGER, new_low_count INTEGER,
+            pct_above_ma20 DOUBLE, pct_above_ma60 DOUBLE, source VARCHAR, retrieved_at TIMESTAMPTZ,
+            available_date DATE, PRIMARY KEY (market, market_date)
+        );
+        CREATE TABLE IF NOT EXISTS regime_daily (
+            context_type VARCHAR, context_id VARCHAR, market_date DATE, regime VARCHAR,
+            confidence_class VARCHAR, evidence_for_json VARCHAR, evidence_against_json VARCHAR,
+            missing_inputs_json VARCHAR, source_dates_json VARCHAR, analysis_version VARCHAR,
+            ruleset_version VARCHAR, created_at TIMESTAMPTZ,
+            PRIMARY KEY (context_type, context_id, market_date, analysis_version, ruleset_version)
+        );
+    """,
 }
 
 

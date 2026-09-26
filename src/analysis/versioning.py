@@ -10,8 +10,8 @@ from src.models_v3 import AnalysisVersion
 
 
 V3_ANALYSIS_VERSION = "v3"
-V3_RULESET_VERSION = "m1-foundation"
-V3_SCHEMA_VERSION = 7
+V3_RULESET_VERSION = "m2-regime-v1"
+V3_SCHEMA_VERSION = 8
 
 
 def config_hash(value: Any) -> str:

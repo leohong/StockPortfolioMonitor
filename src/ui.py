@@ -10,6 +10,7 @@ from src.database.db import (connect, read_institutional, read_margin, read_pivo
 from src.services.portfolio_service import load_portfolio, filter_portfolio
 from src.services.review_service import load_timeline, historical_review, compare_holdings, load_data_quality
 from src.services.export_service import snapshot_csv, snapshot_png
+from src.services.regime_service import load_regime_context
 
 STRUCTURE_STATES = {"UPTREND_STRUCTURE": "上升結構", "DOWNTREND_STRUCTURE": "下降結構",
                     "POSSIBLE_BASE": "可能築底", "POSSIBLE_TOP": "可能築頂",
@@ -22,6 +23,10 @@ SEVERITY_LABELS = {"INFO":"資訊", "WATCH":"注意", "IMPORTANT":"重要", "CRI
 STAGE_LABELS = {"A_DOWNTREND":"A｜下降趨勢", "B_EARLY_BASE":"B｜初步築底", "C_BASE_CONFIRMATION":"C｜底部確認",
                 "D_UPTREND":"D｜上升趨勢", "E_OVERHEATED":"E｜過熱", "F_HIGH_LEVEL_CORRECTION":"F｜高檔修正",
                 "G_STRUCTURE_WEAKENING":"G｜結構轉弱", "TRANSITION":"過渡期", "UNCLASSIFIED":"無法分類"}
+REGIME_LABELS = {"RISK_ON_TREND":"風險偏好趨勢", "RISK_ON_EXTENDED":"風險偏好延伸",
+                 "RANGE_ROTATION":"區間輪動", "RISK_OFF":"風險趨避", "TRANSITION":"轉換期",
+                 "INSUFFICIENT_DATA":"資料不足"}
+CONFIDENCE_LABELS = {"CONFIRMED":"證據完整", "MIXED":"證據混合", "TENTATIVE":"暫定", "INSUFFICIENT":"資料不足"}
 
 
 def stock_detail():
@@ -57,6 +62,7 @@ def stock_detail():
             st.write(message(error))
         return
     latest = data.iloc[-1]
+    market_regime, sector_regime, sector_classification = load_regime_context(settings, holding.ticker, latest.market_date)
     with connect(settings.database) as db:
         institutional_count = len(read_institutional(db, holding.ticker))
         margin_count = len(read_margin(db, holding.ticker))
@@ -73,6 +79,20 @@ def stock_detail():
     b.metric("最新交易日", str(latest.market_date))
     c.metric("資料品質", STATUS[quality.status])
     st.caption(f"行情 {len(data)} 日 · 法人 {institutional_count} 日 · 融資融券 {margin_count} 日 · 成交量／法人：股 · 融資融券：交易單位")
+    st.subheader("市場與產業 Regime（V3 並行）")
+    market_column, sector_column = st.columns(2)
+    if market_regime:
+        market_column.metric("市場 Regime", REGIME_LABELS[market_regime.regime])
+        market_column.caption(f"{CONFIDENCE_LABELS[market_regime.confidence_class]} · 截至 {market_regime.market_date} · 缺少：{'、'.join(market_regime.missing_inputs) or '無'}")
+    else:
+        market_column.metric("市場 Regime", "尚未計算")
+    if sector_regime:
+        sector_name = sector_classification[1] if sector_classification else "歷史分類不可用"
+        sector_column.metric(f"產業 Regime｜{sector_name}", REGIME_LABELS[sector_regime.regime])
+        sector_column.caption(f"{CONFIDENCE_LABELS[sector_regime.confidence_class]} · 缺少：{'、'.join(sector_regime.missing_inputs) or '無'}")
+    else:
+        sector_column.metric("產業 Regime", "尚未計算")
+    st.caption("Regime 是 V3 的上層市場情境；目前不改變下方 V2 市場階段。confidence 表示證據完整度，不是機率。")
     meaningful_events = [item for item in latest_events if item.severity in {"WATCH","IMPORTANT","CRITICAL"}]
     changed_only = st.toggle("只顯示今日有重要變化的持股")
     if changed_only and not meaningful_events:
