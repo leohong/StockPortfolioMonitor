@@ -2,7 +2,7 @@
 
 本專案已完成計畫中的第零至第九階段：真實行情、法人、融資融券、價格結構、七因素證據矩陣、市場階段、每日快照、變化偵測、Portfolio Radar、歷史時間軸、持股比較、資料品質稽核與快照匯出。尚未進入第十階段。
 
-V3 遷移目前已完成 M0 至 M8：版本化資料與官方市場 Regime、完整 evidence vector、Market State、重要性事件、條件式 scenario，以及以 V3 為預設的儀表板。既有 V2 歷史與匯出仍可使用；V3 使用獨立版本儲存。歷史產業分類、產業指數或 benchmark 日期不足時會明確顯示資料不足，不會補造資料；價格仍採官方未還原權息資料並保留調整警告。
+V3 遷移 M0 至 M9 已完成：版本化資料與官方市場 Regime、完整 evidence vector、Market State、重要性事件、條件式 scenario、V3 預設儀表板，以及 point-in-time replay、事件研究、chronological walk-forward、參數穩健性與效能驗證。既有 V2 歷史與匯出仍可使用；目前建議保留 V2。歷史產業分類、產業指數或 benchmark 日期不足時會明確顯示資料不足，不會補造資料；價格仍採官方未還原權息資料並保留調整警告。
 
 ## 安裝與啟動
 
@@ -87,6 +87,8 @@ V3 M6 將 regime、結構、趨勢、動能、相對強弱、Participation、法
 V3 M7 比較相鄰 evidence vector，將狀態變化分為 LOW／MEDIUM／HIGH／CRITICAL 注意優先度，並保存當時的結構化背景與 reason codes。每天固定產生 continuation、unresolved、deterioration 三種條件式 scenario；每項條件都引用 evidence 維度，並列出確認與失效事件。Scenario 不含機率預測或目標價。
 
 V3 M8 將 Portfolio Radar、個股詳情、昨日與今日、狀態時間軸、持股比較與 CSV 匯出切換為 V3 預設。個股頁面可檢視主要、支持及反向證據、失效條件、12 維 evidence、HIGH／CRITICAL 事件與三種 scenario；Portfolio Radar 可依 HIGH／CRITICAL 篩選。V2 歷史介面、五層圖表及既有 CSV／PNG 匯出維持可用，V3 CSV 直接輸出同一份已保存 snapshot、事件與 scenario。
+
+V3 M9 對 3702 的 304 個交易日逐日重建 evidence、Market State、significance event 與 scenario，結果沒有 mismatch 或未來來源日期。事件研究輸出 5／10／20／60 日描述性分布；walk-forward 嚴格依時間切分且不隨機打亂。正式資料只有一檔股票與約 15 個月，forward 結果不支持方向預測用途，因此 V2 淘汰建議為保留。完整報告見 `V3_VALIDATION_REPORT.md`、`V3_MIGRATION_REPORT.md` 與 `V2_DEPRECATION_RECOMMENDATION.md`。
 
 ## 資料品質與來源限制
 
