@@ -21,19 +21,19 @@ def _round_tick(price: float) -> float:
     return round(round(price/tick)*tick,2)
 
 
-def _avwap(frame: pd.DataFrame, pivot: PricePivot, as_of, ruleset: str) -> AnchoredVWAP | None:
-    if pivot.confirmation_date > as_of:
+def _avwap(frame: pd.DataFrame, *, anchor_type, anchor_date, confirmation_date, anchor_price,
+           derivation, as_of, ruleset) -> AnchoredVWAP | None:
+    if confirmation_date > as_of:
         return None
-    history=frame[(frame.market_date>=pivot.pivot_date)&(frame.market_date<=as_of)]
+    history=frame[(frame.market_date>=anchor_date)&(frame.market_date<=as_of)]
     valid=history.dropna(subset=["high","low","close","volume"])
     denominator=valid.volume.sum()
     if valid.empty or denominator <= 0:
         return None
     value=(((valid.high+valid.low+valid.close)/3)*valid.volume).sum()/denominator
-    kind="CONFIRMED_SWING_LOW" if pivot.pivot_kind=="LOW" else "CONFIRMED_SWING_HIGH"
-    return AnchoredVWAP(ticker=str(valid.iloc[-1].ticker),market_date=as_of,anchor_type=kind,
-        anchor_date=pivot.pivot_date,confirmation_date=pivot.confirmation_date,anchor_price=pivot.price,
-        avwap=float(value),derivation="confirmed pivot; typical price × official share volume / official share volume",
+    return AnchoredVWAP(ticker=str(valid.iloc[-1].ticker),market_date=as_of,anchor_type=anchor_type,
+        anchor_date=anchor_date,confirmation_date=confirmation_date,anchor_price=anchor_price,
+        avwap=float(value),derivation=derivation+"; typical price × official share volume / official share volume",
         source_dates=valid.market_date.tolist(),ruleset_version=ruleset,created_at=datetime.now(timezone.utc))
 
 
@@ -51,6 +51,8 @@ def calculate_location(data: pd.DataFrame, pivots: list[PricePivot], ruleset_ver
     frame=data.sort_values("market_date").reset_index(drop=True).copy(); frame["market_date"]=pd.to_datetime(frame.market_date).dt.date
     for window in (20,60,120): frame[f"ma{window}"]=frame.close.rolling(window,min_periods=window).mean()
     frame["prior_high20"]=frame.high.rolling(20,min_periods=20).max().shift(1); frame["prior_low20"]=frame.low.rolling(20,min_periods=20).min().shift(1)
+    frame["volume_ratio20"]=frame.volume/frame.volume.rolling(20,min_periods=20).mean().replace(0,pd.NA)
+    frame["gap_pct"]=(frame.open/frame.close.shift(1)-1)*100
     avwaps=[]; zones=[]; states=[]
     for index,row in frame.iterrows():
         confirmed=[p for p in pivots if p.confirmation_date<=row.market_date]
@@ -58,7 +60,20 @@ def calculate_location(data: pd.DataFrame, pivots: list[PricePivot], ruleset_ver
         for kind in ("LOW","HIGH"):
             matches=[p for p in confirmed if p.pivot_kind==kind]
             if matches: latest.append(max(matches,key=lambda p:(p.confirmation_date,p.pivot_date)))
-        daily_avwaps=[item for p in latest if (item:=_avwap(frame,p,row.market_date,ruleset_version))]
+        anchors=[]
+        for p in latest:
+            anchors.append(("CONFIRMED_SWING_LOW" if p.pivot_kind=="LOW" else "CONFIRMED_SWING_HIGH",
+                p.pivot_date,p.confirmation_date,p.price,"confirmed pivot available "+str(p.confirmation_date)))
+        history=frame.iloc[:index+1]
+        events=(("BREAKOUT_DATE",history[history.close>history.prior_high20],"close crossed prior 20-day high"),
+                ("LARGE_VOLUME_EVENT",history[history.volume_ratio20>=1.8],"official volume ratio 20 >= 1.8"),
+                ("GAP_EVENT",history[history.gap_pct.abs()>=2],"absolute opening gap >= 2%"))
+        for kind,matches,reason in events:
+            if not matches.empty:
+                event=matches.iloc[-1]; anchors.append((kind,event.market_date,event.market_date,float(event.close),reason))
+        daily_avwaps=[item for kind,day,confirmed,price,reason in anchors if (item:=_avwap(frame,
+            anchor_type=kind,anchor_date=day,confirmation_date=confirmed,anchor_price=price,
+            derivation=reason,as_of=row.market_date,ruleset=ruleset_version))]
         avwaps.extend(daily_avwaps)
         candidates=[]
         for p in confirmed[-12:]: candidates.append((p.price,"CONFIRMED_SWING_"+p.pivot_kind,"confirmed pivot available "+str(p.confirmation_date),p.confirmation_date))

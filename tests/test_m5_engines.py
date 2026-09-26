@@ -38,6 +38,17 @@ def test_avwap_waits_for_confirmation_and_is_auditable():
     assert first.source_dates[0]==pivot.pivot_date
 
 
+def test_event_anchors_are_deterministic_and_same_day_available():
+    data=stock(40); data.loc[30,"close"]=120; data.loc[30,"high"]=121
+    data.loc[31,"open"]=125; data.loc[31,"close"]=125; data.loc[31,"high"]=126; data.loc[31,"low"]=124
+    data.loc[32,"volume"]=5000
+    avwaps,_,_=calculate_location(data,[],RULES)
+    latest={x.anchor_type:x for x in avwaps if x.market_date==data.market_date.iloc[-1]}
+    assert latest["BREAKOUT_DATE"].confirmation_date==latest["BREAKOUT_DATE"].anchor_date
+    assert latest["GAP_EVENT"].confirmation_date==latest["GAP_EVENT"].anchor_date
+    assert latest["LARGE_VOLUME_EVENT"].confirmation_date==latest["LARGE_VOLUME_EVENT"].anchor_date
+
+
 def test_future_confirmed_pivot_cannot_affect_historical_zones():
     data=stock(40); days=data.market_date.tolist(); cutoff=days[25]
     safe=PricePivot(ticker="3702",pivot_date=days[10],confirmation_date=days[13],pivot_kind="LOW",price=99)

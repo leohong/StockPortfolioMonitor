@@ -232,7 +232,7 @@ class VolatilityState(BaseModel):
 class AnchoredVWAP(BaseModel):
     ticker: str
     market_date: date
-    anchor_type: Literal["CONFIRMED_SWING_LOW", "CONFIRMED_SWING_HIGH"]
+    anchor_type: Literal["CONFIRMED_SWING_LOW", "CONFIRMED_SWING_HIGH", "BREAKOUT_DATE", "LARGE_VOLUME_EVENT", "GAP_EVENT"]
     anchor_date: date
     confirmation_date: date
     anchor_price: float
