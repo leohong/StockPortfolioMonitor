@@ -24,6 +24,7 @@ def test_participation_uses_prior_range_and_configurable_thresholds():
     assert result.state=="STRONG_CONFIRMATION"
     assert result.breakout is True and result.volume_ratio_20 > 1.5
     assert result.volume_unit=="shares" and len(result.source_dates)==21
+    assert next(item for item in result.observations if item["metric"]=="volume_ratio_20")["unit"]=="ratio"
     assert calculate_participation(data,RULES,strong_ratio=3,confirm_ratio=2.5)[-1].state=="WEAK_CONFIRMATION"
 
 

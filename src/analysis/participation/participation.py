@@ -46,7 +46,9 @@ def calculate_participation(data: pd.DataFrame, ruleset_version: str, *, confirm
                    "volume_ratio_20": row.volume_ratio_20, "turnover": row.turnover,
                    "close_location_value": row.close_location_value}
         values = {key: None if pd.isna(value) else (int(value) if key in {"volume","turnover"} else float(value)) for key,value in numeric.items()}
-        observations = [{"metric": key, "value": value, "unit": "shares" if key.startswith("volume") else "TWD" if key == "turnover" else "ratio"} for key,value in values.items() if value is not None]
+        observations = [{"metric": key, "value": value,
+                         "unit": "shares" if key in {"volume","volume_ma5","volume_ma20"} else "TWD" if key == "turnover" else "ratio"}
+                        for key,value in values.items() if value is not None]
         observations += [{"metric":"breakout","value":breakout},{"metric":"breakdown","value":breakdown}]
         start = max(0, index-20)
         output.append(ParticipationState(ticker=str(row.ticker), market_date=row.market_date, state=state,
