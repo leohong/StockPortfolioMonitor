@@ -22,6 +22,8 @@ python -m venv .venv
 
 開啟終端機顯示的本機網址。按「更新市場資料」取得官方行情；切換股票或圖表區間只會讀取本機資料庫，不會重新下載。使用 Ctrl+C 停止服務。不需要 API 金鑰或付費服務。
 
+Windows 也可直接雙擊 `start_dashboard.bat`。它會先檢查 `127.0.0.1:8502`：若儀表板已在執行，只開啟頁面並略過重複啟動；若尚未執行，才會使用專案 `.venv` 啟動 Streamlit。關閉時請在 Streamlit 命令視窗按 `Ctrl+C`，再關閉該視窗。
+
 如需重現已驗證的 Windows／Python 3.12 套件版本，可先安裝 `requirements-lock.txt`，再執行 `pip install --no-deps -e .`。
 
 ## 操作方式
