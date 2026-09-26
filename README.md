@@ -2,7 +2,7 @@
 
 本專案已完成計畫中的第零至第九階段：真實行情、法人、融資融券、價格結構、七因素證據矩陣、市場階段、每日快照、變化偵測、Portfolio Radar、歷史時間軸、持股比較、資料品質稽核與快照匯出。尚未進入第十階段。
 
-V3 遷移目前已完成 M0 至 M3：repository audit、版本化 schema、官方 TAIEX Regime，以及 Trend Quality、Momentum V3、相對大盤強弱。既有 V2 歷史維持原表不變；V3 使用獨立版本儲存。歷史產業分類、產業指數或 benchmark 日期不足時會明確顯示資料不足，不會補造資料；價格仍採官方未還原權息資料並保留調整警告。
+V3 遷移目前已完成 M0 至 M8：版本化資料與官方市場 Regime、完整 evidence vector、Market State、重要性事件、條件式 scenario，以及以 V3 為預設的儀表板。既有 V2 歷史與匯出仍可使用；V3 使用獨立版本儲存。歷史產業分類、產業指數或 benchmark 日期不足時會明確顯示資料不足，不會補造資料；價格仍採官方未還原權息資料並保留調整警告。
 
 ## 安裝與啟動
 
@@ -85,6 +85,8 @@ V3 M5 從同一份官方行情計算 Wilder ATR14、ATR%、20 日年化歷史波
 V3 M6 將 regime、結構、趨勢、動能、相對強弱、Participation、法人流向、Positioning、波動與 Location 組成 12 維 point-in-time evidence vector。Market State 依固定階層規則產生主要、支持、反向證據及失效條件，不計算總分，也不依賴 LLM。V3 snapshot 獨立保存，V2 歷史不會被改寫。
 
 V3 M7 比較相鄰 evidence vector，將狀態變化分為 LOW／MEDIUM／HIGH／CRITICAL 注意優先度，並保存當時的結構化背景與 reason codes。每天固定產生 continuation、unresolved、deterioration 三種條件式 scenario；每項條件都引用 evidence 維度，並列出確認與失效事件。Scenario 不含機率預測或目標價。
+
+V3 M8 將 Portfolio Radar、個股詳情、昨日與今日、狀態時間軸、持股比較與 CSV 匯出切換為 V3 預設。個股頁面可檢視主要、支持及反向證據、失效條件、12 維 evidence、HIGH／CRITICAL 事件與三種 scenario；Portfolio Radar 可依 HIGH／CRITICAL 篩選。V2 歷史介面、五層圖表及既有 CSV／PNG 匯出維持可用，V3 CSV 直接輸出同一份已保存 snapshot、事件與 scenario。
 
 ## 資料品質與來源限制
 

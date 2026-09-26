@@ -117,6 +117,16 @@ def snapshot_csv(snapshot, evidence, events, source_url):
     return output.getvalue().encode("utf-8-sig")
 
 
+def v3_snapshot_csv(snapshot,events,scenarios):
+    output=io.StringIO(); writer=csv.writer(output); writer.writerow(["section","field","value","market_date"])
+    day=snapshot["market_date"]
+    for field,value in snapshot["payload"].items():
+        writer.writerow(["v3_snapshot",field,json.dumps(value,ensure_ascii=False,default=str) if isinstance(value,(dict,list)) else value,day])
+    for event in events: writer.writerow(["significant_event",event["dimension"],f"{event['previous_state']} -> {event['current_state']} [{event['significance']}]",day])
+    for scenario in scenarios: writer.writerow(["scenario",scenario["scenario_type"],json.dumps(scenario,ensure_ascii=False,default=str),day])
+    return output.getvalue().encode("utf-8-sig")
+
+
 def export_figure(figure, snapshot, evidence, events, source_url):
     result = go.Figure(figure)
     factor_labels={"price_structure":"價格結構","rsi":"RSI","moving_averages":"移動平均","volume":"成交量","institutional":"三大法人","margin":"融資","support_resistance":"支撐／壓力"}

@@ -9,8 +9,10 @@ from src.database.db import (connect, read_institutional, read_margin, read_pivo
                              read_evidence, read_market_stage, read_snapshots, read_change_events)
 from src.services.portfolio_service import load_portfolio, filter_portfolio
 from src.services.review_service import load_timeline, historical_review, compare_holdings, load_data_quality
-from src.services.export_service import snapshot_csv, snapshot_png
+from src.services.export_service import snapshot_csv, snapshot_png, v3_snapshot_csv
 from src.services.regime_service import load_regime_context
+from src.services.ui_v3_service import (load_v3_portfolio,filter_v3_portfolio,load_v3_detail,
+                                        load_v3_timeline,compare_v3)
 
 STRUCTURE_STATES = {"UPTREND_STRUCTURE": "上升結構", "DOWNTREND_STRUCTURE": "下降結構",
                     "POSSIBLE_BASE": "可能築底", "POSSIBLE_TOP": "可能築頂",
@@ -27,6 +29,54 @@ REGIME_LABELS = {"RISK_ON_TREND":"風險偏好趨勢", "RISK_ON_EXTENDED":"風�
                  "RANGE_ROTATION":"區間輪動", "RISK_OFF":"風險趨避", "TRANSITION":"轉換期",
                  "INSUFFICIENT_DATA":"資料不足"}
 CONFIDENCE_LABELS = {"CONFIRMED":"證據完整", "MIXED":"證據混合", "TENTATIVE":"暫定", "INSUFFICIENT":"資料不足"}
+SIGNIFICANCE_LABELS={"LOW":"低","MEDIUM":"中","HIGH":"高","CRITICAL":"關鍵"}
+SCENARIO_LABELS={"POSITIVE_CONTINUATION":"正向／延續","NEUTRAL_UNRESOLVED":"中性／未解","NEGATIVE_DETERIORATION":"負向／惡化"}
+SCENARIO_STATUS={"SUPPORTED":"條件成立","PARTIAL":"部分成立","NOT_SUPPORTED":"條件未成立"}
+DIMENSION_LABELS={"regime":"市場 Regime","sector_regime":"產業 Regime","structure":"價格結構","trend":"趨勢品質",
+    "momentum":"動能","relative_strength":"相對強弱","participation":"量價參與","capital_flow":"法人流向",
+    "positioning":"籌碼／槓桿","volatility":"波動","location":"位置","fundamental_context":"基本面情境","market_state":"V3 狀態"}
+SCENARIO_TEXT={"POSITIVE_CONTINUATION":"若所有條件持續或轉為成立，延續證據將增強；這不是預測。",
+    "NEUTRAL_UNRESOLVED":"目前缺失或互相衝突的證據使狀態維持未解，等待依賴維度改變。",
+    "NEGATIVE_DETERIORATION":"若所有惡化條件轉為成立，結構風險證據將增強；這不是預測。"}
+
+
+def render_v3_detail(settings,ticker):
+    current,previous,events,scenarios=load_v3_detail(settings,ticker)
+    if current is None:
+        st.info("尚無 V3 snapshot；下方仍可檢視 V2 歷史資料。")
+        return None
+    payload=current["payload"]; detail=payload.get("market_state_detail",{}); dimensions=payload.get("evidence_vector",{}).get("dimensions",{})
+    st.subheader("V3 Market State")
+    top=st.columns(4); top[0].metric("目前狀態",payload.get("market_state","—")); top[1].metric("市場 Regime",payload.get("market_regime","—")); top[2].metric("產業 Regime",payload.get("sector_regime","—")); top[3].metric("資料品質",current["quality"])
+    for item in detail.get("primary_evidence",[]): st.write(f"**主要證據｜{DIMENSION_LABELS.get(item['dimension'],item['dimension'])}**：{item['state']}")
+    with st.expander("支持、反向證據與失效條件",expanded=True):
+        st.write("支持證據",detail.get("supporting_evidence",[])); st.write("反向證據",detail.get("contradicting_evidence",[])); st.write("失效條件",detail.get("invalidation_conditions",[])); st.write("未解問題",detail.get("unresolved_questions",[]))
+    st.subheader("條件式 Scenario")
+    columns=st.columns(3)
+    for column,item in zip(columns,scenarios):
+        with column:
+            st.markdown(f"**{SCENARIO_LABELS.get(item['scenario_type'],item['name'])}**　`{SCENARIO_STATUS.get(item['current_status'],item['current_status'])}`")
+            for condition in item["conditions"]: st.write(("✓" if condition["satisfied"] else "○")+f" {DIMENSION_LABELS.get(condition['dimension'],condition['dimension'])}：{condition['observed']}")
+            st.caption(SCENARIO_TEXT[item["scenario_type"]])
+            with st.expander("確認與失效事件"): st.write("確認",item["confirmation_events"]); st.write("失效",item["invalidation_events"]); st.write("相關價位",item["relevant_levels"])
+    st.subheader("V3 Evidence Vector")
+    names=list(dimensions)
+    for start in range(0,len(names),4):
+        for column,name in zip(st.columns(min(4,len(names)-start)),names[start:start+4]):
+            item=dimensions[name]
+            with column:
+                st.markdown(f"**{DIMENSION_LABELS.get(name,name)}**"); st.metric("狀態",item.get("state","—")); st.caption(f"版本：{item.get('calculation_version','—')}｜缺少：{'、'.join(item.get('missing_data',[])) or '無'}")
+    if previous:
+        st.subheader("V3 昨日與今日")
+        fields=("market_state","structure_state","trend_state","momentum_state","relative_strength_state","participation_state","capital_flow_state","positioning_state","volatility_state","location_state")
+        st.dataframe({"維度":fields,str(previous["market_date"]):[previous["payload"].get(x,"—") for x in fields],str(current["market_date"]):[payload.get(x,"—") for x in fields]},hide_index=True)
+    st.subheader("V3 重要事件")
+    important=[item for item in events if item["significance"] in {"HIGH","CRITICAL"}]
+    if important:
+        for item in important: st.write(f"**{SIGNIFICANCE_LABELS[item['significance']]}｜{item['dimension']}**　{item['explanation']}")
+    else: st.caption("當日沒有 HIGH／CRITICAL 事件。")
+    st.download_button("下載 V3 完整快照 CSV",v3_snapshot_csv(current,events,scenarios),file_name=f"{ticker}_{current['market_date']}_v3.csv",mime="text/csv")
+    return current
 
 
 def stock_detail():
@@ -37,7 +87,7 @@ def stock_detail():
         st.session_state.view = "portfolio"
         st.rerun()
     st.title("台股技術分析儀表板")
-    st.caption("第六階段 · 每日快照、昨日與今日、變化偵測")
+    st.caption("V3 個股決策支援 · 條件式情境、證據向量與重要變化；下方保留 V2 歷史內容")
     selected_ticker = st.session_state.get("selected_ticker")
     selected_index = next((i for i,item in enumerate(holdings) if item.ticker == selected_ticker), 0)
     holding = st.selectbox("股票", holdings, index=selected_index, format_func=lambda h: f"{h.ticker} {h.name}")
@@ -62,6 +112,7 @@ def stock_detail():
             st.write(message(error))
         return
     latest = data.iloc[-1]
+    v3_current=render_v3_detail(settings,holding.ticker)
     market_regime, sector_regime, sector_classification = load_regime_context(settings, holding.ticker, latest.market_date)
     with connect(settings.database) as db:
         institutional_count = len(read_institutional(db, holding.ticker))
@@ -174,7 +225,7 @@ def stock_detail():
         st.dataframe(display.rename(columns=FIELDS), hide_index=True)
 
 
-def portfolio_radar():
+def portfolio_radar_v2():
     settings, holdings, _ = load_config()
     data = load_portfolio(settings, holdings)
     st.title("投資組合雷達")
@@ -216,7 +267,25 @@ def portfolio_radar():
     st.caption(f"顯示 {len(filtered)}／{len(data)} 檔；可點選任一列開啟個股詳情。表格欄位可直接排序。")
 
 
-def market_timeline():
+def portfolio_radar():
+    settings,holdings,_=load_config()
+    if st.toggle("顯示 V2 投資組合雷達",help="V3 為預設；開啟後可存取既有 V2 歷史介面。"):
+        portfolio_radar_v2(); return
+    data=load_v3_portfolio(settings,holdings)
+    st.title("投資組合雷達 V3")
+    st.caption("依重要性與資料品質尋找需要檢視的持股；不進行最佳到最差排名。")
+    valid=data[data.market_date.notna()]
+    top=st.columns(5); top[0].metric("持股數",len(holdings)); top[1].metric("有顯著變化",int(data.significant_change.sum())); top[2].metric("HIGH／CRITICAL",int(data.highest_significance.isin(["HIGH","CRITICAL"]).sum())); top[3].metric("資料品質警告",int((data.quality!="PASS").sum())); top[4].metric("最新資料日",str(valid.market_date.max()) if not valid.empty else "尚無")
+    if valid.empty: st.warning("尚無 V3 snapshot。V2 歷史仍可由上方切換查看。")
+    a,b,c,d=st.columns([2,2,2,1]); search=a.text_input("搜尋股票代號或名稱"); states=sorted(x for x in data.market_state.dropna().unique()); selected=b.multiselect("V3 Market State",states); attention=c.selectbox("注意篩選",["全部","HIGH／CRITICAL","資料品質警告"]); changed=d.toggle("只看有變化")
+    filtered=filter_v3_portfolio(data,search,selected,attention,changed); display=filtered.copy(); display["股票"]=display.ticker+" "+display["name"]
+    columns={"股票":"股票","close":"價格","market_regime":"市場 Regime","sector_regime":"產業 Regime","market_state":"V3 State","relative_strength":"相對強弱","positioning":"Positioning","volatility":"波動","significant_change":"有顯著變化","highest_significance":"最高重要性","quality":"資料品質"}
+    event=st.dataframe(display[list(columns)].rename(columns=columns),hide_index=True,width="stretch",on_select="rerun",selection_mode="single-row",key="portfolio_v3_table")
+    if event.selection.rows:
+        st.session_state.selected_ticker=filtered.iloc[event.selection.rows[0]].ticker; st.session_state.view="detail"; st.rerun()
+
+
+def market_timeline_v2():
     settings, holdings, _ = load_config()
     st.title("市場階段時間軸與歷史檢視")
     holding = st.selectbox("股票",holdings,format_func=lambda x:f"{x.ticker} {x.name}",key="timeline_stock")
@@ -245,7 +314,20 @@ def market_timeline():
         st.caption("此檢視只讀取該日期以前已確認並保存的證據，不使用未來資料。")
 
 
-def holdings_compare():
+def market_timeline():
+    settings,holdings,_=load_config(); st.title("狀態時間軸與歷史檢視")
+    mode=st.radio("版本",["V3","V2"],horizontal=True)
+    if mode=="V2": market_timeline_v2(); return
+    holding=st.selectbox("股票",holdings,format_func=lambda x:f"{x.ticker} {x.name}",key="timeline_v3_stock")
+    data=load_v3_timeline(settings,holding.ticker)
+    if data.empty: st.warning("尚無 V3 歷史快照。"); return
+    dates=(data.market_date.min(),data.market_date.max()); selected=st.date_input("日期範圍",dates,min_value=dates[0],max_value=dates[1]); data=load_v3_timeline(settings,holding.ticker,*selected)
+    st.subheader("V3 State 變化"); st.dataframe(data[data.state_changed].rename(columns={"market_date":"日期","market_state":"V3 State","structure":"結構","trend":"趨勢","quality":"資料品質"}),hide_index=True,width="stretch")
+    day=st.selectbox("歷史 V3 snapshot",list(reversed(data.market_date.tolist()))); current,_,events,scenarios=load_v3_detail(settings,holding.ticker,day)
+    if current: st.json({"snapshot":current["payload"],"events":events,"scenarios":scenarios},expanded=False)
+
+
+def holdings_compare_v2():
     settings, holdings, _ = load_config()
     st.title("持股並排比較")
     st.caption("並排檢視證據，不產生總分、排名或勝者。")
@@ -257,6 +339,16 @@ def holdings_compare():
     names={x.ticker:x.name for x in selected}; result["股票"]=result.ticker.map(lambda x:f"{x} {names[x]}"); result["市場階段"]=result.market_stage.map(lambda x:STAGE_LABELS.get(x,x))
     columns={"股票":"股票","市場階段":"市場階段","rsi14":"RSI14","return_20d_pct":"20 日報酬（%）","distance_ma20_pct":"距 MA20（%）","volume_ratio_20":"量比","foreign_5d":"外資 5 日","foreign_20d":"外資 20 日","trust_5d":"投信 5 日","trust_20d":"投信 20 日","margin_change_pct_20d":"融資 20 日（%）","distance_support_pct":"距支撐（%）","distance_resistance_pct":"距壓力（%）"}
     st.dataframe(result[list(columns)].rename(columns=columns),hide_index=True,width="stretch")
+
+
+def holdings_compare():
+    settings,holdings,_=load_config(); st.title("持股並排比較")
+    mode=st.radio("版本",["V3","V2"],horizontal=True)
+    if mode=="V2": holdings_compare_v2(); return
+    st.caption("比較各維 evidence，不產生總分、排名或勝者。")
+    selected=st.multiselect("選擇 2–5 檔持股",holdings,format_func=lambda x:f"{x.ticker} {x.name}",max_selections=5)
+    if len(selected)<2: st.info("請選擇至少 2 檔持股。"); return
+    result=compare_v3(settings,[x.ticker for x in selected]); st.dataframe(result,hide_index=True,width="stretch")
 
 
 def data_quality_page():
@@ -277,7 +369,7 @@ def data_quality_page():
 def application():
     if "view" not in st.session_state:
         st.session_state.view = "portfolio"
-    labels={"portfolio":"投資組合雷達","detail":"個股詳情","timeline":"市場階段時間軸","compare":"持股比較","quality":"資料品質"}
+    labels={"portfolio":"投資組合雷達","detail":"個股詳情","timeline":"V3 狀態時間軸","compare":"持股比較","quality":"資料品質"}
     st.sidebar.markdown("### 頁面")
     for view,label in labels.items():
         st.sidebar.button(label,key=f"nav_{view}",use_container_width=True,on_click=lambda target=view:setattr(st.session_state,"view",target))

@@ -3,7 +3,7 @@
 ## 實作順序與階段門檻
 
 - V2 以 `IMPLEMENT_PLAN_WEB_DASHBOARD_V2.md` 為歷史範圍基準；V3 遷移以 `V3_MIGRATION_PLAN.md` 為目前階段基準。
-- V2 Phase 0 至 Phase 9 已完成並必須維持相容。V3 M0 至 M7 已完成，下一個工作階段是 M8（UI Cutover）。
+- V2 Phase 0 至 Phase 9 已完成並必須維持相容。V3 M0 至 M8 已完成，下一個工作階段是 M9（Validation、Walk-Forward、Documentation、V2 Deprecation Decision）。
 - 嚴格依 V3 M0 → M9 順序實作；未通過當期全部驗收條件前，不得開始下一階段。
 - 不得提前加入計畫明列為後續階段的功能，即使相關實作看似方便。
 - 每個階段完成時必須：使用真實官方資料、執行測試、記錄驗收與來源限制、提交 Git，並在已設定遠端時推送。
