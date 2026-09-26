@@ -16,6 +16,10 @@ class Settings(BaseModel):
     pivot_left_bars: int = Field(default=3, ge=1, le=20)
     pivot_right_bars: int = Field(default=3, ge=1, le=20)
     level_tolerance_pct: float = Field(default=2.0, gt=0, le=10)
+    trend_extended_distance_pct: float = Field(default=8.0, gt=0, le=30)
+    trend_persistence_min: float = Field(default=0.7, ge=0.5, le=1)
+    rs_leading_20d_pct: float = Field(default=3.0, ge=0, le=30)
+    rs_leading_60d_pct: float = Field(default=5.0, ge=0, le=50)
 
 
 def load_config(root: Path = ROOT):

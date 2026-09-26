@@ -5,3 +5,7 @@ stale_days: 7
 pivot_left_bars: 3
 pivot_right_bars: 3
 level_tolerance_pct: 2.0
+trend_extended_distance_pct: 8.0
+trend_persistence_min: 0.7
+rs_leading_20d_pct: 3.0
+rs_leading_60d_pct: 5.0

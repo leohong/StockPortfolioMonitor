@@ -57,6 +57,33 @@ MIGRATIONS: dict[int, str] = {
             PRIMARY KEY (context_type, context_id, market_date, analysis_version, ruleset_version)
         );
     """,
+    9: """
+        CREATE TABLE IF NOT EXISTS trend_quality_daily (
+            ticker VARCHAR, market_date DATE, state VARCHAR,
+            ma5 DOUBLE, ma20 DOUBLE, ma60 DOUBLE, ma120 DOUBLE,
+            ma20_slope_5d_pct DOUBLE, ma60_slope_5d_pct DOUBLE, ma120_slope_5d_pct DOUBLE,
+            distance_ma20_pct DOUBLE, distance_ma60_pct DOUBLE, ma20_ma60_separation_pct DOUBLE,
+            persistence_20d DOUBLE, observations_json VARCHAR, source_dates_json VARCHAR,
+            analysis_version VARCHAR, ruleset_version VARCHAR, created_at TIMESTAMPTZ,
+            PRIMARY KEY (ticker, market_date, analysis_version, ruleset_version)
+        );
+        CREATE TABLE IF NOT EXISTS momentum_state_daily (
+            ticker VARCHAR, market_date DATE, state VARCHAR, rsi14 DOUBLE, rsi_change_5d DOUBLE,
+            roc20 DOUBLE, rsi_cross VARCHAR, divergence VARCHAR, divergence_pivot_date DATE,
+            divergence_confirmation_date DATE, observations_json VARCHAR, source_dates_json VARCHAR,
+            analysis_version VARCHAR, ruleset_version VARCHAR, created_at TIMESTAMPTZ,
+            PRIMARY KEY (ticker, market_date, analysis_version, ruleset_version)
+        );
+        CREATE TABLE IF NOT EXISTS relative_strength_daily (
+            ticker VARCHAR, market_date DATE, benchmark_symbol VARCHAR, benchmark_date DATE,
+            rs_line DOUBLE, rs_line_indexed DOUBLE, rs_market_20d DOUBLE, rs_market_60d DOUBLE,
+            rs_market_120d DOUBLE, rs_line_change_20d DOUBLE, state VARCHAR,
+            rs_sector_20d DOUBLE, sector_state VARCHAR, missing_inputs_json VARCHAR,
+            price_basis VARCHAR, corporate_action_warning BOOLEAN, source_dates_json VARCHAR,
+            analysis_version VARCHAR, ruleset_version VARCHAR, created_at TIMESTAMPTZ,
+            PRIMARY KEY (ticker, market_date, analysis_version, ruleset_version)
+        );
+    """,
 }
 
 
