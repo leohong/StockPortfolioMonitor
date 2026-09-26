@@ -15,6 +15,13 @@ def _roc_date(value: str) -> date:
     return date(year + 1911, month, day)
 
 
+def _official_report_date(value: str) -> date:
+    text = value.strip()
+    if len(text) == 7 and text.isdigit():
+        return date(int(text[:3]) + 1911, int(text[3:5]), int(text[5:7]))
+    return datetime.strptime(text, "%Y%m%d").date()
+
+
 def normalize_taiex(envelope: dict) -> list[BenchmarkDaily]:
     payload = envelope["payload"]
     market = {_roc_date(row[0]): row for row in payload["market"]["data"]}
@@ -36,7 +43,7 @@ def normalize_sector_classification(envelope: dict, tickers: set[str] | None = N
         ticker = str(row.get("公司代號", "")).strip()
         if not ticker or (tickers is not None and ticker not in tickers):
             continue
-        available = datetime.strptime(str(row["出表日期"]), "%Y%m%d").date()
+        available = _official_report_date(str(row["出表日期"]))
         industry = str(row.get("產業別", "")).strip() or "UNKNOWN"
         output.append(SectorClassification(ticker=ticker, sector=f"TWSE-{industry}", industry=industry,
             classification_source=envelope["source"], retrieved_at=envelope["retrieved_at"],
