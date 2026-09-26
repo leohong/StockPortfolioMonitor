@@ -6,6 +6,7 @@ import duckdb
 import pandas as pd
 
 from src.models import OHLCV, InstitutionalDaily, MarginDaily, PricePivot, PriceLevel, StructureSnapshot, Evidence, MarketStage, AnalysisSnapshot, ChangeEvent
+from src.database.migrations import apply_migrations
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS ohlcv_daily (
@@ -76,6 +77,7 @@ def connect(path: Path):
     connection = duckdb.connect(str(path))
     try:
         connection.execute(SCHEMA)
+        apply_migrations(connection)
         yield connection
     finally:
         connection.close()
