@@ -82,6 +82,8 @@ V3 M4 直接重用上述官方行情、法人與融資融券資料。Participati
 
 V3 M5 從同一份官方行情計算 Wilder ATR14、ATR%、20 日年化歷史波動、日內區間比、跳空幅度與尾端波動百分位。AVWAP 錨點只使用已到確認日的波段高低點，同時保存轉折日、確認日與逐日來源；支撐／壓力匯聚區保存每個組成價位及推導，並依台股跳動單位取整。波動狀態只描述幅度，不提供方向性訊號。
 
+V3 M6 將 regime、結構、趨勢、動能、相對強弱、Participation、法人流向、Positioning、波動與 Location 組成 12 維 point-in-time evidence vector。Market State 依固定階層規則產生主要、支持、反向證據及失效條件，不計算總分，也不依賴 LLM。V3 snapshot 獨立保存，V2 歷史不會被改寫。
+
 ## 資料品質與來源限制
 
 官方來源為 `https://www.twse.com.tw/exchangeReport/STOCK_DAY`。成交股數單位為「股」，不是「張」；成交金額為新臺幣。民國年份加 1911 轉為西元。

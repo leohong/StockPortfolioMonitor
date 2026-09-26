@@ -278,3 +278,40 @@ class LocationState(BaseModel):
     analysis_version: Literal["v3"] = "v3"
     ruleset_version: str
     created_at: datetime
+
+
+class EvidenceDimensionV3(BaseModel):
+    state: str
+    headline: str
+    observations: list[dict[str, Any]] = Field(default_factory=list)
+    evidence_for: list[dict[str, Any]] = Field(default_factory=list)
+    evidence_against: list[dict[str, Any]] = Field(default_factory=list)
+    missing_data: list[str] = Field(default_factory=list)
+    source_dates: list[date] = Field(default_factory=list)
+    calculation_version: str
+
+
+class EvidenceVectorV3(BaseModel):
+    ticker: str
+    market_date: date
+    dimensions: dict[str, EvidenceDimensionV3]
+    data_quality_status: Literal["PASS", "PASS_WITH_WARNINGS", "FAIL"]
+    analysis_version: Literal["v3"] = "v3"
+    ruleset_version: str
+    created_at: datetime
+
+
+class MarketStateV3(BaseModel):
+    ticker: str
+    market_date: date
+    state: Literal["S0_DECLINE", "S1_STABILIZATION", "S2_BASE", "S3_BREAKOUT", "S4_TREND", "S5_EXTENSION", "S6_DISTRIBUTION_RISK", "S7_CORRECTION", "S8_STRUCTURE_FAILURE", "TRANSITION", "UNCLASSIFIED"]
+    previous_state: str | None = None
+    transition: str | None = None
+    primary_evidence: list[dict[str, Any]] = Field(default_factory=list)
+    supporting_evidence: list[dict[str, Any]] = Field(default_factory=list)
+    contradicting_evidence: list[dict[str, Any]] = Field(default_factory=list)
+    invalidation_conditions: list[dict[str, Any]] = Field(default_factory=list)
+    unresolved_questions: list[str] = Field(default_factory=list)
+    analysis_version: Literal["v3"] = "v3"
+    ruleset_version: str
+    created_at: datetime

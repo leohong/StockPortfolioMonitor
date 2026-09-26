@@ -18,9 +18,9 @@ def persist_v3_snapshot(connection, snapshot: V3SnapshotEnvelope) -> None:
         "WHERE ticker=? AND market_date=? AND analysis_version=? AND ruleset_version=?",
         [snapshot.ticker, snapshot.market_date, snapshot.analysis_version, snapshot.ruleset_version],
     ).fetchone()
-    identity = (snapshot.data_quality_status, payload_json, snapshot.created_at)
+    identity = (snapshot.data_quality_status, payload_json)
     if existing is not None:
-        if tuple(existing) != identity:
+        if tuple(existing[:2]) != identity:
             raise ValueError("Persisted V3 snapshot is immutable for this version identity")
         return
     connection.execute(

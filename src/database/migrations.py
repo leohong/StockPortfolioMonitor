@@ -142,6 +142,21 @@ MIGRATIONS: dict[int, str] = {
             PRIMARY KEY (ticker, market_date, analysis_version, ruleset_version)
         );
     """,
+    12: """
+        CREATE TABLE IF NOT EXISTS evidence_v3_daily (
+            ticker VARCHAR, market_date DATE, dimensions_json VARCHAR, data_quality_status VARCHAR,
+            analysis_version VARCHAR, ruleset_version VARCHAR, created_at TIMESTAMPTZ,
+            PRIMARY KEY (ticker, market_date, analysis_version, ruleset_version)
+        );
+        CREATE TABLE IF NOT EXISTS market_state_v3_daily (
+            ticker VARCHAR, market_date DATE, state VARCHAR, previous_state VARCHAR, transition VARCHAR,
+            primary_evidence_json VARCHAR, supporting_evidence_json VARCHAR,
+            contradicting_evidence_json VARCHAR, invalidation_conditions_json VARCHAR,
+            unresolved_questions_json VARCHAR, analysis_version VARCHAR, ruleset_version VARCHAR,
+            created_at TIMESTAMPTZ,
+            PRIMARY KEY (ticker, market_date, analysis_version, ruleset_version)
+        );
+    """,
 }
 
 

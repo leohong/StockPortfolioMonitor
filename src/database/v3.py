@@ -7,6 +7,7 @@ import pandas as pd
 from src.models_v3 import (BenchmarkDaily, CapitalFlowState, MomentumState, ParticipationState,
                            PositioningState, RegimeEvidence, RelativeStrengthState, SectorClassification,
                            TrendQuality, VolatilityState, AnchoredVWAP, LocationZone, LocationState)
+from src.models_v3 import EvidenceVectorV3, MarketStateV3
 
 
 def persist_benchmark(connection, rows: list[BenchmarkDaily]) -> None:
@@ -222,3 +223,16 @@ def persist_location_states(connection,rows:list[LocationState]):
         "resistance_zone_high","distance_support_pct","distance_resistance_pct","observations_json","missing_inputs_json",
         "source_dates_json","analysis_version","ruleset_version","created_at"]
     _persist_versioned_rows(connection,"location_state_daily",rows,columns,("observations","missing_inputs","source_dates"))
+
+
+def persist_evidence_vectors(connection,rows:list[EvidenceVectorV3]):
+    columns=["ticker","market_date","dimensions_json","data_quality_status","analysis_version","ruleset_version","created_at"]
+    _persist_versioned_rows(connection,"evidence_v3_daily",rows,columns,("dimensions",))
+
+
+def persist_market_states(connection,rows:list[MarketStateV3]):
+    columns=["ticker","market_date","state","previous_state","transition","primary_evidence_json",
+        "supporting_evidence_json","contradicting_evidence_json","invalidation_conditions_json",
+        "unresolved_questions_json","analysis_version","ruleset_version","created_at"]
+    _persist_versioned_rows(connection,"market_state_v3_daily",rows,columns,("primary_evidence","supporting_evidence",
+        "contradicting_evidence","invalidation_conditions","unresolved_questions"))
