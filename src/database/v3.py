@@ -8,6 +8,7 @@ from src.models_v3 import (BenchmarkDaily, CapitalFlowState, MomentumState, Part
                            PositioningState, RegimeEvidence, RelativeStrengthState, SectorClassification,
                            TrendQuality, VolatilityState, AnchoredVWAP, LocationZone, LocationState)
 from src.models_v3 import EvidenceVectorV3, MarketStateV3
+from src.models_v3 import SignificantEventV3, ScenarioV3
 
 
 def persist_benchmark(connection, rows: list[BenchmarkDaily]) -> None:
@@ -236,3 +237,18 @@ def persist_market_states(connection,rows:list[MarketStateV3]):
         "unresolved_questions_json","analysis_version","ruleset_version","created_at"]
     _persist_versioned_rows(connection,"market_state_v3_daily",rows,columns,("primary_evidence","supporting_evidence",
         "contradicting_evidence","invalidation_conditions","unresolved_questions"))
+
+
+def persist_significant_events(connection,rows:list[SignificantEventV3]):
+    columns=["event_id","ticker","market_date","dimension","previous_state","current_state","significance",
+        "context_features_json","reason_codes_json","explanation","analysis_version","ruleset_version","created_at"]
+    _persist_custom(connection,"event_significance",rows,columns,("context_features","reason_codes"),
+        ("event_id","analysis_version","ruleset_version"))
+
+
+def persist_scenarios(connection,rows:list[ScenarioV3]):
+    columns=["ticker","market_date","scenario_type","name","current_status","conditions_json",
+        "confirmation_events_json","invalidation_events_json","relevant_levels_json","evidence_dependencies_json",
+        "interpretation","analysis_version","ruleset_version","created_at"]
+    _persist_custom(connection,"scenario_daily",rows,columns,("conditions","confirmation_events","invalidation_events",
+        "relevant_levels","evidence_dependencies"),("ticker","market_date","scenario_type","analysis_version","ruleset_version"))

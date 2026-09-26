@@ -84,6 +84,8 @@ V3 M5 從同一份官方行情計算 Wilder ATR14、ATR%、20 日年化歷史波
 
 V3 M6 將 regime、結構、趨勢、動能、相對強弱、Participation、法人流向、Positioning、波動與 Location 組成 12 維 point-in-time evidence vector。Market State 依固定階層規則產生主要、支持、反向證據及失效條件，不計算總分，也不依賴 LLM。V3 snapshot 獨立保存，V2 歷史不會被改寫。
 
+V3 M7 比較相鄰 evidence vector，將狀態變化分為 LOW／MEDIUM／HIGH／CRITICAL 注意優先度，並保存當時的結構化背景與 reason codes。每天固定產生 continuation、unresolved、deterioration 三種條件式 scenario；每項條件都引用 evidence 維度，並列出確認與失效事件。Scenario 不含機率預測或目標價。
+
 ## 資料品質與來源限制
 
 官方來源為 `https://www.twse.com.tw/exchangeReport/STOCK_DAY`。成交股數單位為「股」，不是「張」；成交金額為新臺幣。民國年份加 1911 轉為西元。

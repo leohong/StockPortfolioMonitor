@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import argparse
+from datetime import datetime,timezone
+import json
 
 from src.analysis.momentum.momentum import calculate_momentum
 from src.analysis.relative_strength.relative_strength import calculate_relative_strength
@@ -12,13 +14,16 @@ from src.analysis.positioning import calculate_positioning
 from src.analysis.volatility import calculate_volatility
 from src.analysis.location import calculate_location
 from src.analysis.market_state import build_evidence_vector, classify_market_state
+from src.analysis.significance import detect_significant_events
+from src.analysis.scenario import build_scenarios
 from src.config import load_config
 from src.database.db import connect, frame, read_institutional, read_margin, read_pivots
 from src.database.v3 import (persist_momentum_states, persist_relative_strength, persist_trend_quality,
                              persist_participation, persist_capital_flow, persist_positioning, read_benchmark,
                              persist_volatility, persist_anchored_vwap, persist_location_zones, persist_location_states)
 from src.database.v3 import persist_evidence_vectors, persist_market_states
-from src.models_v3 import V3SnapshotEnvelope
+from src.database.v3 import persist_significant_events,persist_scenarios
+from src.models_v3 import EvidenceVectorV3,MarketStateV3,V3SnapshotEnvelope
 from src.snapshots.v3_snapshot import persist_v3_snapshot
 from src.services.stock_service import load_stock
 
@@ -156,11 +161,40 @@ def refresh_m6(settings,ticker:str,git_commit:str):
     return vectors[-1],states[-1],snapshots[-1]
 
 
+def _read_m6(db,ticker):
+    rows=db.execute("SELECT market_date,dimensions_json,data_quality_status FROM evidence_v3_daily WHERE ticker=? AND ruleset_version='m6-evidence-market-state-v1' ORDER BY market_date",[ticker]).fetchall()
+    vectors=[EvidenceVectorV3(ticker=ticker,market_date=row[0],dimensions=json.loads(row[1]),
+        data_quality_status=row[2],ruleset_version="m6-evidence-market-state-v1",created_at=datetime.now(timezone.utc)) for row in rows]
+    rows=db.execute("SELECT * FROM market_state_v3_daily WHERE ticker=? AND ruleset_version='m6-evidence-market-state-v1' ORDER BY market_date",[ticker])
+    names=[c[0] for c in rows.description]; states=[]
+    for raw in rows.fetchall():
+        item=dict(zip(names,raw))
+        for field in ("primary_evidence","supporting_evidence","contradicting_evidence","invalidation_conditions","unresolved_questions"):
+            item[field]=json.loads(item.pop(field+"_json"))
+        states.append(MarketStateV3(**item))
+    return vectors,states
+
+
+def refresh_m7(settings,ticker:str,git_commit:str):
+    with connect(settings.database) as db: vectors,states=_read_m6(db,ticker)
+    if not vectors or len(vectors)!=len(states): raise ValueError("M7 requires complete M6 evidence and market states")
+    events=[]; scenarios=[]; previous_vector=None; previous_state=None
+    for vector,state in zip(vectors,states):
+        events.extend(detect_significant_events(vector,previous_vector,state,previous_state,V3_RULESET_VERSION))
+        scenarios.extend(build_scenarios(vector,state,V3_RULESET_VERSION))
+        previous_vector=vector; previous_state=state.state
+    version=version_record(git_commit,settings)
+    with connect(settings.database) as db:
+        register_analysis_version(db,version); persist_significant_events(db,events); persist_scenarios(db,scenarios)
+    latest_day=vectors[-1].market_date
+    return [x for x in events if x.market_date==latest_day],[x for x in scenarios if x.market_date==latest_day]
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--git-commit", required=True)
     parser.add_argument("--ticker", default="3702")
     args = parser.parse_args()
     settings, _, _ = load_config()
-    vector,state,snapshot=refresh_m6(settings,args.ticker,args.git_commit)
-    for item in (vector,state,snapshot): print(item.model_dump_json(indent=2))
+    events,scenarios=refresh_m7(settings,args.ticker,args.git_commit)
+    for item in (*events,*scenarios): print(item.model_dump_json(indent=2))

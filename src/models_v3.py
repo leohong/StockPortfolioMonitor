@@ -315,3 +315,44 @@ class MarketStateV3(BaseModel):
     analysis_version: Literal["v3"] = "v3"
     ruleset_version: str
     created_at: datetime
+
+
+class SignificantEventV3(BaseModel):
+    event_id: str
+    ticker: str
+    market_date: date
+    dimension: str
+    previous_state: str
+    current_state: str
+    significance: Literal["LOW", "MEDIUM", "HIGH", "CRITICAL"]
+    context_features: list[dict[str, Any]] = Field(default_factory=list)
+    reason_codes: list[str] = Field(default_factory=list)
+    explanation: str
+    analysis_version: Literal["v3"] = "v3"
+    ruleset_version: str
+    created_at: datetime
+
+
+class ScenarioConditionV3(BaseModel):
+    dimension: str
+    operator: Literal["IN", "NOT_IN", "EQUALS"]
+    expected: list[str]
+    observed: str
+    satisfied: bool
+
+
+class ScenarioV3(BaseModel):
+    ticker: str
+    market_date: date
+    scenario_type: Literal["POSITIVE_CONTINUATION", "NEUTRAL_UNRESOLVED", "NEGATIVE_DETERIORATION"]
+    name: str
+    current_status: Literal["SUPPORTED", "PARTIAL", "NOT_SUPPORTED"]
+    conditions: list[ScenarioConditionV3]
+    confirmation_events: list[dict[str, Any]]
+    invalidation_events: list[dict[str, Any]]
+    relevant_levels: list[dict[str, Any]]
+    evidence_dependencies: list[str]
+    interpretation: str
+    analysis_version: Literal["v3"] = "v3"
+    ruleset_version: str
+    created_at: datetime
