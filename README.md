@@ -2,7 +2,7 @@
 
 本專案已完成計畫中的第零至第九階段：真實行情、法人、融資融券、價格結構、七因素證據矩陣、市場階段、每日快照、變化偵測、Portfolio Radar、歷史時間軸、持股比較、資料品質稽核與快照匯出。尚未進入第十階段。
 
-V3 遷移目前已完成 M0 repository audit 與 M1 versioning/schema foundation。既有 V2 歷史維持原表不變；V3 使用獨立、具分析版本與規則集版本的快照儲存。Market Regime 等 M2 功能尚未開始。
+V3 遷移目前已完成 M0 repository audit、M1 versioning/schema foundation 與 M2 benchmark/regime。既有 V2 歷史維持原表不變；V3 使用獨立版本儲存，並以證交所官方 TAIEX 資料產生 point-in-time Market Regime。歷史產業分類或產業指數不足時會明確顯示資料不足，不會補造資料。
 
 ## 安裝與啟動
 
