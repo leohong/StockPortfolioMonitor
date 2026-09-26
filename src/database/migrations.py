@@ -84,6 +84,35 @@ MIGRATIONS: dict[int, str] = {
             PRIMARY KEY (ticker, market_date, analysis_version, ruleset_version)
         );
     """,
+    10: """
+        CREATE TABLE IF NOT EXISTS participation_daily (
+            ticker VARCHAR, market_date DATE, state VARCHAR, volume BIGINT, volume_ma5 DOUBLE,
+            volume_ma20 DOUBLE, volume_ratio_20 DOUBLE, turnover BIGINT, close_location_value DOUBLE,
+            breakout BOOLEAN, breakdown BOOLEAN, observations_json VARCHAR, missing_inputs_json VARCHAR,
+            source_dates_json VARCHAR, volume_unit VARCHAR, turnover_unit VARCHAR, analysis_version VARCHAR,
+            ruleset_version VARCHAR, created_at TIMESTAMPTZ,
+            PRIMARY KEY (ticker, market_date, analysis_version, ruleset_version)
+        );
+        CREATE TABLE IF NOT EXISTS capital_flow_daily (
+            ticker VARCHAR, market_date DATE, participant VARCHAR, state VARCHAR,
+            net_flow_1d BIGINT, net_flow_3d BIGINT, net_flow_5d BIGINT, net_flow_10d BIGINT,
+            net_flow_20d BIGINT, positive_days_10d INTEGER, negative_days_10d INTEGER,
+            flow_persistence_10d DOUBLE, observations_json VARCHAR, missing_inputs_json VARCHAR,
+            source_dates_json VARCHAR, unit VARCHAR, analysis_version VARCHAR, ruleset_version VARCHAR,
+            created_at TIMESTAMPTZ,
+            PRIMARY KEY (ticker, market_date, participant, analysis_version, ruleset_version)
+        );
+        CREATE TABLE IF NOT EXISTS positioning_daily (
+            ticker VARCHAR, market_date DATE, state VARCHAR, margin_balance BIGINT,
+            margin_change_5d BIGINT, margin_change_10d BIGINT, margin_change_20d BIGINT,
+            margin_change_pct_5d DOUBLE, margin_change_pct_10d DOUBLE, margin_change_pct_20d DOUBLE,
+            short_balance BIGINT, short_change_5d BIGINT, short_change_10d BIGINT, short_change_20d BIGINT,
+            price_return_pct_20d DOUBLE, leverage_divergence_20d DOUBLE, turnover_ratio_20 DOUBLE,
+            observations_json VARCHAR, missing_inputs_json VARCHAR, source_dates_json VARCHAR,
+            balance_unit VARCHAR, analysis_version VARCHAR, ruleset_version VARCHAR, created_at TIMESTAMPTZ,
+            PRIMARY KEY (ticker, market_date, analysis_version, ruleset_version)
+        );
+    """,
 }
 
 

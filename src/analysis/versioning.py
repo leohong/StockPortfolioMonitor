@@ -10,8 +10,8 @@ from src.models_v3 import AnalysisVersion
 
 
 V3_ANALYSIS_VERSION = "v3"
-V3_RULESET_VERSION = "m3-trend-momentum-rs-v1"
-V3_SCHEMA_VERSION = 9
+V3_RULESET_VERSION = "m4-participation-flow-positioning-v1"
+V3_SCHEMA_VERSION = 10
 
 
 def config_hash(value: Any) -> str:

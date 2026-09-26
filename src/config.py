@@ -20,6 +20,13 @@ class Settings(BaseModel):
     trend_persistence_min: float = Field(default=0.7, ge=0.5, le=1)
     rs_leading_20d_pct: float = Field(default=3.0, ge=0, le=30)
     rs_leading_60d_pct: float = Field(default=5.0, ge=0, le=50)
+    participation_confirm_ratio: float = Field(default=1.2, gt=0)
+    participation_strong_ratio: float = Field(default=1.5, gt=0)
+    participation_abnormal_ratio: float = Field(default=2.5, gt=0)
+    flow_persistence_ratio: float = Field(default=0.7, ge=0.5, le=1)
+    positioning_margin_expansion_pct: float = Field(default=10.0, gt=0)
+    positioning_crowded_margin_pct: float = Field(default=20.0, gt=0)
+    positioning_deleveraging_pct: float = Field(default=-5.0, lt=0)
 
 
 def load_config(root: Path = ROOT):

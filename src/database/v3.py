@@ -4,7 +4,9 @@ import json
 
 import pandas as pd
 
-from src.models_v3 import BenchmarkDaily, MomentumState, RegimeEvidence, RelativeStrengthState, SectorClassification, TrendQuality
+from src.models_v3 import (BenchmarkDaily, CapitalFlowState, MomentumState, ParticipationState,
+                           PositioningState, RegimeEvidence, RelativeStrengthState,
+                           SectorClassification, TrendQuality)
 
 
 def persist_benchmark(connection, rows: list[BenchmarkDaily]) -> None:
@@ -128,4 +130,55 @@ def read_latest_m3(connection, ticker: str, as_of=None):
         cursor = connection.execute(f"SELECT * FROM {table} WHERE {clause} ORDER BY market_date DESC,created_at DESC LIMIT 1", params)
         names, row = [column[0] for column in cursor.description], cursor.fetchone()
         result[name] = None if row is None else dict(zip(names,row))
+    return result
+
+
+def persist_participation(connection, rows: list[ParticipationState]):
+    columns = ["ticker","market_date","state","volume","volume_ma5","volume_ma20","volume_ratio_20",
+        "turnover","close_location_value","breakout","breakdown","observations_json","missing_inputs_json",
+        "source_dates_json","volume_unit","turnover_unit","analysis_version","ruleset_version","created_at"]
+    _persist_versioned_rows(connection,"participation_daily",rows,columns,("observations","missing_inputs","source_dates"))
+
+
+def persist_positioning(connection, rows: list[PositioningState]):
+    columns = ["ticker","market_date","state","margin_balance","margin_change_5d","margin_change_10d",
+        "margin_change_20d","margin_change_pct_5d","margin_change_pct_10d","margin_change_pct_20d",
+        "short_balance","short_change_5d","short_change_10d","short_change_20d","price_return_pct_20d",
+        "leverage_divergence_20d","turnover_ratio_20","observations_json","missing_inputs_json",
+        "source_dates_json","balance_unit","analysis_version","ruleset_version","created_at"]
+    _persist_versioned_rows(connection,"positioning_daily",rows,columns,("observations","missing_inputs","source_dates"))
+
+
+def persist_capital_flow(connection, rows: list[CapitalFlowState]):
+    columns = ["ticker","market_date","participant","state","net_flow_1d","net_flow_3d","net_flow_5d",
+        "net_flow_10d","net_flow_20d","positive_days_10d","negative_days_10d","flow_persistence_10d",
+        "observations_json","missing_inputs_json","source_dates_json","unit","analysis_version","ruleset_version","created_at"]
+    for item in rows:
+        values=item.model_dump()
+        for field in ("observations","missing_inputs","source_dates"):
+            values[f"{field}_json"]=json.dumps(values.pop(field),ensure_ascii=False,sort_keys=True,default=str)
+        identity=[item.ticker,item.market_date,item.participant,item.analysis_version,item.ruleset_version]
+        existing=connection.execute(f"SELECT {','.join(columns)} FROM capital_flow_daily WHERE ticker=? AND market_date=? AND participant=? AND analysis_version=? AND ruleset_version=?",identity).fetchone()
+        payload=tuple(values[column] for column in columns)
+        if existing is not None:
+            comparable=[i for i,column in enumerate(columns) if column!="created_at"]
+            if any(existing[i]!=payload[i] for i in comparable):
+                raise ValueError("Persisted capital_flow_daily row is immutable for this version identity")
+            continue
+        connection.execute(f"INSERT INTO capital_flow_daily ({','.join(columns)}) VALUES ({','.join('?' for _ in columns)})",list(payload))
+
+
+def read_latest_m4(connection, ticker: str, as_of=None):
+    result={}
+    for name,table in (("participation","participation_daily"),("positioning","positioning_daily")):
+        clause,params="ticker=?",[ticker]
+        if as_of is not None: clause+=" AND market_date<=?"; params.append(as_of)
+        cursor=connection.execute(f"SELECT * FROM {table} WHERE {clause} ORDER BY market_date DESC,created_at DESC LIMIT 1",params)
+        names,row=[column[0] for column in cursor.description],cursor.fetchone()
+        result[name]=None if row is None else dict(zip(names,row))
+    clause,params="ticker=?",[ticker]
+    if as_of is not None: clause+=" AND market_date<=?"; params.append(as_of)
+    cursor=connection.execute(f"SELECT * FROM capital_flow_daily WHERE {clause} QUALIFY market_date=max(market_date) OVER () ORDER BY participant",params)
+    names=[column[0] for column in cursor.description]
+    result["capital_flow"]=[dict(zip(names,row)) for row in cursor.fetchall()]
     return result

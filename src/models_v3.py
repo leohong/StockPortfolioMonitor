@@ -138,3 +138,74 @@ class RelativeStrengthState(BaseModel):
     analysis_version: Literal["v3"] = "v3"
     ruleset_version: str
     created_at: datetime
+
+
+class ParticipationState(BaseModel):
+    ticker: str
+    market_date: date
+    state: Literal["STRONG_CONFIRMATION", "CONFIRMING", "NORMAL", "WEAK_CONFIRMATION", "CONTRADICTORY", "ABNORMAL", "INSUFFICIENT_DATA"]
+    volume: int | None = None
+    volume_ma5: float | None = None
+    volume_ma20: float | None = None
+    volume_ratio_20: float | None = None
+    turnover: int | None = None
+    close_location_value: float | None = None
+    breakout: bool | None = None
+    breakdown: bool | None = None
+    observations: list[dict[str, Any]] = Field(default_factory=list)
+    missing_inputs: list[str] = Field(default_factory=list)
+    source_dates: list[date] = Field(default_factory=list)
+    volume_unit: Literal["shares"] = "shares"
+    turnover_unit: Literal["TWD"] = "TWD"
+    analysis_version: Literal["v3"] = "v3"
+    ruleset_version: str
+    created_at: datetime
+
+
+class CapitalFlowState(BaseModel):
+    ticker: str
+    market_date: date
+    participant: Literal["FOREIGN", "INVESTMENT_TRUST", "DEALER"]
+    state: Literal["PERSISTENT_BUYING", "BUYING", "NEUTRAL", "SELLING", "PERSISTENT_SELLING", "REVERSING_POSITIVE", "REVERSING_NEGATIVE", "INSUFFICIENT_DATA"]
+    net_flow_1d: int | None = None
+    net_flow_3d: int | None = None
+    net_flow_5d: int | None = None
+    net_flow_10d: int | None = None
+    net_flow_20d: int | None = None
+    positive_days_10d: int | None = None
+    negative_days_10d: int | None = None
+    flow_persistence_10d: float | None = None
+    observations: list[dict[str, Any]] = Field(default_factory=list)
+    missing_inputs: list[str] = Field(default_factory=list)
+    source_dates: list[date] = Field(default_factory=list)
+    unit: Literal["shares"] = "shares"
+    analysis_version: Literal["v3"] = "v3"
+    ruleset_version: str
+    created_at: datetime
+
+
+class PositioningState(BaseModel):
+    ticker: str
+    market_date: date
+    state: Literal["HEALTHY", "NORMAL", "LEVERAGE_EXPANDING", "CROWDED", "DELEVERAGING", "STRESS", "INSUFFICIENT_DATA"]
+    margin_balance: int | None = None
+    margin_change_5d: int | None = None
+    margin_change_10d: int | None = None
+    margin_change_20d: int | None = None
+    margin_change_pct_5d: float | None = None
+    margin_change_pct_10d: float | None = None
+    margin_change_pct_20d: float | None = None
+    short_balance: int | None = None
+    short_change_5d: int | None = None
+    short_change_10d: int | None = None
+    short_change_20d: int | None = None
+    price_return_pct_20d: float | None = None
+    leverage_divergence_20d: float | None = None
+    turnover_ratio_20: float | None = None
+    observations: list[dict[str, Any]] = Field(default_factory=list)
+    missing_inputs: list[str] = Field(default_factory=list)
+    source_dates: list[date] = Field(default_factory=list)
+    balance_unit: Literal["trading_units"] = "trading_units"
+    analysis_version: Literal["v3"] = "v3"
+    ruleset_version: str
+    created_at: datetime
